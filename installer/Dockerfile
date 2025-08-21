@@ -1,12 +1,25 @@
 FROM node:24-alpine AS web-build
+
+# Configure npm to use npmmirror
+RUN npm config set registry https://registry.npmmirror.com
+
 COPY ui ui
 RUN cd ui && ls -la && if [ -d "dist" ]; then exit 0; fi && \
     npm install --prefer-offline --no-audit && \
     npm install -D concurrently && \
-    NODE_OPTIONS="--max-old-space-size=4096" npx concurrently "npm run build" "npm run build-chat" && \
+    NODE_OPTIONS="--max-old-space-size=8192" npx concurrently "npm run build" "npm run build-chat" && \
     find . -maxdepth 1 ! -name '.' ! -name 'dist' ! -name 'public' -exec rm -rf {} +
 
 FROM ghcr.io/1panel-dev/maxkb-base:python3.11-pg17.6 AS stage-build
+
+# Configure apt to use Aliyun mirror (for Debian 12 bookworm)
+RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources && \
+        sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources; \
+    else \
+        sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+        sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list; \
+    fi
 
 ARG DEPENDENCIES="                    \
         python3-pip"
@@ -19,15 +32,20 @@ RUN apt-get update && \
 COPY --chmod=700 . /opt/maxkb-app
 
 WORKDIR /opt/maxkb-app
+
+# Configure pip to use Aliyun mirror
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    pip config set install.trusted-host mirrors.aliyun.com
+
 RUN rm -rf /opt/maxkb-app/ui && \
     python3 -m venv /opt/py3 && \
     pip install uv --break-system-packages && \
     . /opt/py3/bin/activate && \
-    uv pip install -r pyproject.toml && \
+    uv pip install -r pyproject.toml --index-url https://mirrors.aliyun.com/pypi/simple/ && \
     find /opt/maxkb-app  -depth \( -name ".git*" -o -name ".docker*" -o -name ".idea*" -o -name ".editorconfig*" -o -name ".prettierrc*" -o -name "README.md" -o -name "poetry.lock" -o -name "pyproject.toml"  \) -exec rm -rf {} + && \
     export MAXKB_CONFIG_TYPE=ENV && python3 /opt/maxkb-app/apps/manage.py compilemessages && \
     export PIP_TARGET=/opt/maxkb-app/sandbox/python-packages && \
-    uv pip install --target=$PIP_TARGET requests pymysql psycopg2-binary && \
+    uv pip install --target=$PIP_TARGET --index-url https://mirrors.aliyun.com/pypi/simple/ requests pymysql psycopg2-binary && \
     rm -rf /opt/maxkb-app/installer
 COPY --from=web-build --chmod=700 ui /opt/maxkb-app/ui
 

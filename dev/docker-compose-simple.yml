@@ -1,0 +1,27 @@
+# 最简化的开发环境配置 - 使用单容器模式
+version: '3.8'
+
+services:
+  maxkb:
+    # 使用官方镜像
+    image: maxkb-local:latest
+    container_name: maxkb-dev
+    ports:
+      - "8081:8080"
+    volumes:
+      # 挂载Python源码 - 实现后端热重载
+      - ../apps:/opt/maxkb-app/apps:rw
+      - ../main.py:/opt/maxkb-app/main.py:rw
+      
+      # 挂载前端源码 - 用于查看和调试
+      - ../ui:/opt/maxkb-app/ui:rw
+      
+      # 数据持久化
+      - ~/.maxkb-dev:/opt/maxkb
+    environment:
+      # 开启调试模式
+      DJANGO_DEBUG: "True"
+      PYTHONUNBUFFERED: "1"
+      MAXKB_LOG_LEVEL: "DEBUG"
+    restart: unless-stopped
+    # 使用镜像默认的启动命令

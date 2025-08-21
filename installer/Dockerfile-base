@@ -19,7 +19,18 @@ ARG DEPENDENCIES="                    \
 
 RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
     echo "Asia/Shanghai" > /etc/timezone && \
+    # Configure apt to use Aliyun mirror (for Debian 12 trixie)
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources && \
+        sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources; \
+    else \
+        sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+        sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list; \
+    fi && \
     apt-get update && apt-get install -y --no-install-recommends $DEPENDENCIES && \
+    # Configure pip to use Aliyun mirror
+    pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    pip config set install.trusted-host mirrors.aliyun.com && \
     chmod 755 /usr/bin/start-*.sh && \
     find /etc/ -type f ! -path '/etc/resolv.conf' ! -path '/etc/hosts' | xargs chmod g-rx && \
     curl -L --connect-timeout 120 -m 1800 https://resource.fit2cloud.com/maxkb/ffmpeg/get-ffmpeg-linux | sh && \
