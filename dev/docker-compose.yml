@@ -1,52 +1,52 @@
 version: '3.8'
 
 services:
-  # maxkb-dev:
-  #   # 使用生产镜像或本地构建的镜像
-  #   image: maxkb-local:latest
-  #   # 如果需要本地构建，取消下面两行注释
-  #   # build:
-  #   #   context: ../
-  #   #   dockerfile: installer/Dockerfile
-  #   container_name: maxkb-dev
-  #   ports:
-  #     - "8080:8080"
-  #   volumes:
-  #     # 挂载Python源码实现热重载
-  #     - ../apps:/opt/maxkb-app/apps
-  #     - ../main.py:/opt/maxkb-app/main.py
-  #     - ../installer/maxkb.py:/opt/maxkb-app/maxkb.py
+  maxkb-dev:
+    # 使用生产镜像或本地构建的镜像
+    image: maxkb-local:latest
+    # 如果需要本地构建，取消下面两行注释
+    # build:
+    #   context: ../
+    #   dockerfile: installer/Dockerfile
+    container_name: maxkb-dev
+    ports:
+      - "8080:8080"
+    volumes:
+      # 挂载Python源码实现热重载
+      - ../apps:/opt/maxkb-app/apps
+      - ../main.py:/opt/maxkb-app/main.py
+      - ../installer/maxkb.py:/opt/maxkb-app/maxkb.py
       
-  #     # 挂载UI源码（用于前端开发）
-  #     - ../ui/src:/opt/maxkb-app/ui/src
-  #     - ../ui/public:/opt/maxkb-app/ui/public
+      # 挂载UI源码（用于前端开发）
+      - ../ui/src:/opt/maxkb-app/ui/src
+      - ../ui/public:/opt/maxkb-app/ui/public
       
-  #     # 持久化数据
-  #     - maxkb_data:/opt/maxkb/data
+      # 持久化数据
+      - maxkb_data:/opt/maxkb/data
       
-  #     # 开发配置
-  #     - ./dev.env:/opt/maxkb-app/.env
-  #   environment:
-  #     # 开发环境变量
-  #     DJANGO_DEBUG: "True"
-  #     PYTHONUNBUFFERED: "1"
-  #     MAXKB_LOG_LEVEL: "DEBUG"
+      # 开发配置
+      - ./dev.env:/opt/maxkb-app/.env
+    environment:
+      # 开发环境变量
+      DJANGO_DEBUG: "True"
+      PYTHONUNBUFFERED: "1"
+      MAXKB_LOG_LEVEL: "DEBUG"
       
-  #     # 数据库配置（使用内置的PostgreSQL）
-  #     MAXKB_DB_HOST: "127.0.0.1"
-  #     MAXKB_DB_PORT: "5432"
-  #     MAXKB_DB_NAME: "maxkb"
-  #     MAXKB_DB_USER: "root"
-  #     MAXKB_DB_PASSWORD: "Password123@postgres"
+      # 数据库配置（使用内置的PostgreSQL）
+      MAXKB_DB_HOST: "127.0.0.1"
+      MAXKB_DB_PORT: "5432"
+      MAXKB_DB_NAME: "maxkb"
+      MAXKB_DB_USER: "root"
+      MAXKB_DB_PASSWORD: "Password123@postgres"
       
-  #     # Redis配置（使用内置的Redis）
-  #     MAXKB_REDIS_HOST: "127.0.0.1"
-  #     MAXKB_REDIS_PORT: "6379"
-  #     MAXKB_REDIS_PASSWORD: "Password123@redis"
-  #   # 使用默认的启动命令，让容器内的所有服务正常启动
-  #   # command 留空使用镜像默认的 entrypoint
-  #   networks:
-  #     - maxkb-network
+      # Redis配置（使用内置的Redis）
+      MAXKB_REDIS_HOST: "127.0.0.1"
+      MAXKB_REDIS_PORT: "6379"
+      MAXKB_REDIS_PASSWORD: "Password123@redis"
+    # 使用默认的启动命令，让容器内的所有服务正常启动
+    # command 留空使用镜像默认的 entrypoint
+    networks:
+      - maxkb-network
 
   # 独立的前端开发服务器（可选）
   frontend-dev:

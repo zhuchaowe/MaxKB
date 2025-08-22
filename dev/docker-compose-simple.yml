@@ -7,7 +7,7 @@ services:
     image: maxkb-local:latest
     container_name: maxkb-dev
     ports:
-      - "8081:8080"
+      - "8080:8080"
     volumes:
       # 挂载Python源码 - 实现后端热重载
       - ../apps:/opt/maxkb-app/apps:rw
@@ -17,7 +17,7 @@ services:
       - ../ui:/opt/maxkb-app/ui:rw
       
       # 数据持久化
-      - ~/.maxkb-dev:/opt/maxkb
+      - ~/.maxkb:/opt/maxkb
     environment:
       # 开启调试模式
       DJANGO_DEBUG: "True"
