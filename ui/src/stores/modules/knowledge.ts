@@ -10,6 +10,10 @@ export interface knowledgeStateTypes {
   documentsType: string
   documentsFiles: UploadUserFile[]
   knowledgeList: any[]
+  mineruModels: {
+    llmModel: string | null
+    visionModel: string | null
+  } | null
 }
 
 const useKnowledgeStore = defineStore('knowledge', {
@@ -19,6 +23,7 @@ const useKnowledgeStore = defineStore('knowledge', {
     documentsType: '',
     documentsFiles: [],
     knowledgeList: [],
+    mineruModels: null,
   }),
   actions: {
     saveBaseInfo(info: knowledgeData | null) {
@@ -35,6 +40,9 @@ const useKnowledgeStore = defineStore('knowledge', {
     },
     setKnowledgeList(list: any[]) {
       this.knowledgeList = list
+    },
+    saveMinerUModels(models: { llmModel: string | null; visionModel: string | null }) {
+      this.mineruModels = models
     },
   },
 })

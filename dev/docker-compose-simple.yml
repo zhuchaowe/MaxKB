@@ -12,10 +12,7 @@ services:
       # 挂载Python源码 - 实现后端热重载
       - ../apps:/opt/maxkb-app/apps:rw
       - ../main.py:/opt/maxkb-app/main.py:rw
-      
-      # 挂载前端源码 - 用于查看和调试
-      - ../ui:/opt/maxkb-app/ui:rw
-      
+      - ../tmp:/tmp
       # 数据持久化
       - ~/.maxkb:/opt/maxkb
     environment:
@@ -23,5 +20,7 @@ services:
       DJANGO_DEBUG: "True"
       PYTHONUNBUFFERED: "1"
       MAXKB_LOG_LEVEL: "DEBUG"
+      MINERU_API_TYPE: "self_hosted"
+      MINERU_API_URL: "http://mineru:8000"
     restart: unless-stopped
     # 使用镜像默认的启动命令

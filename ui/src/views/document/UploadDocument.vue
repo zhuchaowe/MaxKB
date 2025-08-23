@@ -38,7 +38,7 @@
         :disabled="SetRulesRef?.loading || loading"
       >
         {{
-          documentsType === 'txt'
+          documentsType === 'txt' || documentsType === 'mineru'
             ? $t('views.document.buttons.next')
             : $t('views.document.buttons.import')
         }}
@@ -133,6 +133,9 @@ async function next() {
             })
           })
       }
+    } else if (documentsType.value === 'mineru') {
+      // MinerU类型文档也需要进入分段设置页面
+      if (active.value++ > 2) active.value = 0
     } else {
       if (active.value++ > 2) active.value = 0
     }
@@ -157,11 +160,21 @@ function submit() {
         delete v['problem_list']
       })
     }
-    documents.push({
+    const doc: any = {
       name: item.name,
       paragraphs: item.content,
       source_file_id: item.source_file_id,
-    })
+    }
+    // 如果是MinerU类型，添加模型参数和分段规则
+    if (documentsType.value === 'mineru' && knowledge.mineruModels) {
+      doc.llm_model_id = knowledge.mineruModels.llmModel
+      doc.vision_model_id = knowledge.mineruModels.visionModel
+      // 传递分段规则
+      if (SetRulesRef.value?.form?.patterns) {
+        doc.split_patterns = SetRulesRef.value.form.patterns
+      }
+    }
+    documents.push(doc)
   })
 
   if (id) {

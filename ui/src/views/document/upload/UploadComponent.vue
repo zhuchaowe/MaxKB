@@ -15,6 +15,7 @@
           $t('views.document.fileType.table.label')
         }}</el-radio-button>
         <el-radio-button value="QA">{{ $t('views.document.fileType.QA.label') }}</el-radio-button>
+        <el-radio-button value="mineru">MinerU</el-radio-button>
       </el-radio-group>
     </div>
 
@@ -133,6 +134,90 @@
         </div>
       </el-upload>
     </el-form-item>
+    <el-form-item prop="fileList" v-else-if="form.fileType === 'mineru'">
+      <div class="update-info flex p-8-12 border-r-6 mb-16 w-full">
+        <div class="mt-4">
+          <AppIcon iconName="app-warning-colorful" style="font-size: 16px"></AppIcon>
+        </div>
+        <div class="ml-16 lighter">
+          <p>1. MinerU 提供高质量的 PDF 和 PPT 文档解析，支持复杂表格、图片、公式等内容</p>
+          <p>2. 支持的文件格式：PDF、PPT、PPTX</p>
+          <p>
+            3. {{ $t('views.document.tip.fileLimitCountTip1') }} {{ file_count_limit }}
+            {{ $t('views.document.tip.fileLimitCountTip2') }},
+            {{ $t('views.document.tip.fileLimitSizeTip1') }} {{ file_size_limit }} MB
+          </p>
+        </div>
+      </div>
+      <!-- 模型选择器 -->
+      <el-form-item label="大语言模型" prop="llmModel" class="mb-16" style="width: 100%;">
+        <el-select
+          v-model="form.llmModel"
+          placeholder="请选择大语言模型"
+          style="width: 100%;"
+          clearable
+        >
+          <el-option
+            v-for="model in llmModels"
+            :key="model.id"
+            :label="model.name"
+            :value="model.id"
+          >
+            <span>{{ model.name }}</span>
+            <el-tag v-if="model.type === 'share'" size="small" class="ml-8">共享</el-tag>
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="视觉模型" prop="visionModel" class="mb-16" style="width: 100%;">
+        <el-select
+          v-model="form.visionModel"
+          placeholder="请选择视觉模型"
+          style="width: 100%;"
+          clearable
+        >
+          <el-option
+            v-for="model in visionModels"
+            :key="model.id"
+            :label="model.name"
+            :value="model.id"
+          >
+            <span>{{ model.name }}</span>
+            <el-tag v-if="model.type === 'share'" size="small" class="ml-8">共享</el-tag>
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-upload
+        :webkitdirectory="false"
+        class="w-full"
+        drag
+        multiple
+        v-model:file-list="form.fileList"
+        action="#"
+        :auto-upload="false"
+        :show-file-list="false"
+        accept=".pdf, .ppt, .pptx"
+        :limit="file_count_limit"
+        :on-exceed="onExceed"
+        :on-change="fileHandleChange"
+        @click.prevent="handlePreview(false)"
+      >
+        <img src="@/assets/upload-icon.svg" alt="" />
+        <div class="el-upload__text">
+          <p>
+            {{ $t('views.document.upload.uploadMessage') }}
+            <em class="hover" @click.prevent="handlePreview(false)">
+              {{ $t('views.document.upload.selectFile') }}
+            </em>
+            <em class="hover ml-4" @click.prevent="handlePreview(true)">
+              {{ $t('views.document.upload.selectFiles') }}
+            </em>
+          </p>
+          <div class="upload__decoration">
+            <p>{{ $t('views.document.upload.formats') }}PDF、PPT、PPTX</p>
+          </div>
+        </div>
+      </el-upload>
+    </el-form-item>
     <el-form-item prop="fileList" v-else>
       <div class="update-info flex p-8-12 border-r-6 mb-16 w-full">
         <div class="mt-4">
@@ -214,6 +299,7 @@ import type { UploadFiles } from 'element-plus'
 import { filesize, getImgUrl, isRightType } from '@/utils/common'
 import { MsgError } from '@/utils/message'
 import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
+import modelApi from '@/api/model/model'
 import useStore from '@/stores'
 import { t } from '@/locales'
 
@@ -241,6 +327,8 @@ const loading = ref(false)
 const form = ref({
   fileType: 'txt',
   fileList: [] as any,
+  llmModel: null as string | null,
+  visionModel: null as string | null,
 })
 
 const rules = reactive({
@@ -252,10 +340,34 @@ const rules = reactive({
 const file_count_limit = ref(50)
 const file_size_limit = ref(100)
 
+// 模型列表
+const llmModels = ref<any[]>([])
+const visionModels = ref<any[]>([])
+
 watch(form.value, (value) => {
   knowledge.saveDocumentsType(value.fileType)
   knowledge.saveDocumentsFile(value.fileList)
+  knowledge.saveMinerUModels({
+    llmModel: value.llmModel,
+    visionModel: value.visionModel
+  })
 })
+
+// 加载模型列表
+const loadModels = async () => {
+  try {
+    const response = await modelApi.getSelectModelList()
+    if (response.data) {
+      // 分离大语言模型和视觉模型
+      llmModels.value = response.data.filter((m: any) => m.model_type === 'LLM')
+      visionModels.value = response.data.filter((m: any) => 
+        m.model_type === 'IMAGE' || m.model_type === 'LLM' // LLM模型也可能支持视觉功能
+      )
+    }
+  } catch (error) {
+    console.error('Failed to load models:', error)
+  }
+}
 
 function downloadTemplate(type: string) {
   loadSharedApi({ type: 'document', systemType: apiType.value }).exportQATemplate(
@@ -347,12 +459,21 @@ onMounted(() => {
   if (documentsFiles.value) {
     form.value.fileList = documentsFiles.value
   }
+  // 恢复MinerU模型选择
+  const mineruModels = knowledge.mineruModels
+  if (mineruModels) {
+    form.value.llmModel = mineruModels.llmModel
+    form.value.visionModel = mineruModels.visionModel
+  }
   getDetail()
+  loadModels() // 加载模型列表
 })
 onUnmounted(() => {
   form.value = {
     fileType: 'txt',
     fileList: [],
+    llmModel: null,
+    visionModel: null,
   }
 })
 

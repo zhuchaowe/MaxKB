@@ -52,11 +52,15 @@ dependencies = [
     "pymupdf==1.26.3",
     "pypdf==6.0.0",
     "pydub==0.25.1",
+    "pillow==11.0.0",
+    "pdf2image==1.17.0",
+    "tiktoken==0.8.0",
     "pysilk==0.0.1",
     "gunicorn==23.0.0",
     "python-daemon==3.1.2",
     "websockets==15.0.1",
     "pylint==3.3.7",
+    "aiofiles==24.1.0",
 ]
 
 [tool.uv]

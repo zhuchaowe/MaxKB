@@ -39,6 +39,7 @@ from common.handle.impl.text.text_split_handle import TextSplitHandle
 from common.handle.impl.text.xls_split_handle import XlsSplitHandle
 from common.handle.impl.text.xlsx_split_handle import XlsxSplitHandle
 from common.handle.impl.text.zip_split_handle import ZipSplitHandle
+from common.handle.impl.text.mineru_split_handle import MinerUSplitHandle
 from common.utils.common import post, get_file_content, bulk_create_in_batches, parse_image
 from common.utils.fork import Fork
 from common.utils.logger import maxkb_logger
@@ -59,7 +60,10 @@ from models_provider.models import Model
 from oss.serializers.file import FileSerializer
 
 default_split_handle = TextSplitHandle()
+# MinerU处理器优先级最高，用于处理PDF和PPT文档
+mineru_split_handle = MinerUSplitHandle()
 split_handles = [
+    mineru_split_handle,  # MinerU处理器放在最前面，优先使用
     HTMLSplitHandle(),
     DocSplitHandle(),
     PdfSplitHandle(),
@@ -1020,7 +1024,7 @@ class DocumentSerializers(serializers.Serializer):
                     file.source_id = self.data.get('knowledge_id')
                     file.save(file_bytes)
 
-        def file_to_paragraph(self, file, pattern_list: List, with_filter: bool, limit: int):
+        def file_to_paragraph(self, file, pattern_list: List, with_filter: bool, limit: int, **kwargs):
             # 保存源文件
             file_id = uuid.uuid7()
             raw_file = File(
@@ -1034,9 +1038,21 @@ class DocumentSerializers(serializers.Serializer):
             file.seek(0)
 
             get_buffer = FileBufferHandle().get_buffer
+            # Split类用于分段预览，传递is_preview=True让MinerU处理器跳过
+            kwargs['is_preview'] = True
             for split_handle in split_handles:
-                if split_handle.support(file, get_buffer):
-                    result = split_handle.handle(file, pattern_list, with_filter, limit, get_buffer, self.save_image)
+                # 检查support方法是否支持kwargs参数
+                if hasattr(split_handle.support, '__code__') and 'kwargs' in split_handle.support.__code__.co_varnames:
+                    is_supported = split_handle.support(file, get_buffer, **kwargs)
+                else:
+                    is_supported = split_handle.support(file, get_buffer)
+                    
+                if is_supported:
+                    # 检查是否有额外的handle方法参数
+                    if hasattr(split_handle.handle, '__code__') and 'kwargs' in split_handle.handle.__code__.co_varnames:
+                        result = split_handle.handle(file, pattern_list, with_filter, limit, get_buffer, self.save_image, **kwargs)
+                    else:
+                        result = split_handle.handle(file, pattern_list, with_filter, limit, get_buffer, self.save_image)
                     if isinstance(result, list):
                         for item in result:
                             item['source_file_id'] = file_id
@@ -1127,6 +1143,113 @@ class DocumentSerializers(serializers.Serializer):
             document_model_list = []
             paragraph_model_list = []
             problem_paragraph_object_list = []
+            
+            # 处理MinerU类型的文档
+            from common.utils.logger import maxkb_logger
+            import os
+            
+            for document in instance_list:
+                # 检查是否是MinerU类型的文档（通过llm_model_id或vision_model_id判断）
+                llm_model_id = document.get('llm_model_id')
+                vision_model_id = document.get('vision_model_id')
+                
+                maxkb_logger.info(f"Processing document: {document.get('name')}, llm_model_id: {llm_model_id}, vision_model_id: {vision_model_id}")
+                
+                if llm_model_id or vision_model_id:
+                    maxkb_logger.info(f"Document {document.get('name')} is MinerU type, processing with MinerU handler")
+                    source_file_id = document.get('source_file_id')
+                    maxkb_logger.info(f"Source file ID: {source_file_id}")
+                    if source_file_id:
+                        # 获取源文件
+                        source_file = QuerySet(File).filter(id=source_file_id).first()
+                        maxkb_logger.info(f"Source file found: {source_file is not None}")
+                        if source_file:
+                            try:
+                                # 使用MinerU处理器重新解析文档
+                                from common.handle.impl.text.mineru_split_handle import MinerUSplitHandle
+                                from common.utils.split_model import get_split_model
+                                import io
+                                
+                                # 检查MinerU配置
+                                mineru_api_type = os.environ.get('MINERU_API_TYPE', '')
+                                if not mineru_api_type:
+                                    maxkb_logger.warning(f"MinerU API not configured, skipping MinerU processing for document: {document.get('name')}")
+                                    continue
+                                
+                                maxkb_logger.info(f"MinerU API configured: {mineru_api_type}")
+                                mineru_handler = MinerUSplitHandle()
+                                
+                                # 获取文件内容
+                                file_content = source_file.get_bytes()
+                                temp_file = io.BytesIO(file_content)
+                                temp_file.name = source_file.file_name
+                                
+                                # 从现有段落中提取分段模式
+                                # 获取用户在预览时设置的分段规则
+                                pattern_list = []
+                                if 'paragraphs' in document and len(document['paragraphs']) > 0:
+                                    # 尝试从元数据或其他地方获取分段模式
+                                    # 这里我们需要从前端传递分段规则
+                                    patterns = document.get('split_patterns', [])
+                                    if patterns:
+                                        pattern_list = [get_split_model(pattern) for pattern in patterns if pattern]
+                                
+                                def get_buffer(file):
+                                    file.seek(0)
+                                    return file.read()
+                                    
+                                def save_image(image_list):
+                                    if image_list is not None and len(image_list) > 0:
+                                        exist_image_list = [str(i.get('id')) for i in
+                                                            QuerySet(File).filter(id__in=[i.id for i in image_list]).values('id')]
+                                        save_image_list = [image for image in image_list if not exist_image_list.__contains__(str(image.id))]
+                                        save_image_list = list({img.id: img for img in save_image_list}.values())
+                                        for file in save_image_list:
+                                            file_bytes = file.meta.pop('content')
+                                            file.meta['knowledge_id'] = knowledge_id
+                                            file.source_type = FileSourceType.KNOWLEDGE
+                                            file.source_id = knowledge_id
+                                            file.save(file_bytes)
+                                
+                                # 使用MinerU处理，不传递is_preview参数，这样MinerU会被使用
+                                maxkb_logger.info(f"Using MinerU to process document: {document.get('name')}")
+                                paragraphs = mineru_handler.handle(
+                                    temp_file, 
+                                    pattern_list, 
+                                    False,  # with_filter
+                                    0,  # limit (0表示不限制)
+                                    get_buffer,
+                                    save_image
+                                )
+                                
+                                # 如果原来有问题列表，需要保留
+                                if 'paragraphs' in document and document['paragraphs']:
+                                    # 尝试将原有的问题列表合并到新的段落中
+                                    old_problems = {}
+                                    for old_para in document['paragraphs']:
+                                        if 'content' in old_para and 'problem_list' in old_para:
+                                            old_problems[old_para['content'][:100]] = old_para['problem_list']
+                                    
+                                    # 为新段落添加问题列表（如果内容相似）
+                                    for new_para in paragraphs:
+                                        content_key = new_para.get('content', '')[:100]
+                                        if content_key in old_problems:
+                                            new_para['problem_list'] = old_problems[content_key]
+                                
+                                # 替换文档的段落为MinerU处理后的结果
+                                maxkb_logger.info(f"MinerU returned {len(paragraphs) if paragraphs else 0} paragraphs")
+                                if paragraphs and len(paragraphs) > 0:
+                                    maxkb_logger.info(f"First paragraph sample: {paragraphs[0] if paragraphs else 'None'}")
+                                    document['paragraphs'] = paragraphs
+                                else:
+                                    maxkb_logger.warning(f"MinerU returned empty paragraphs, keeping original paragraphs")
+                                maxkb_logger.info(f"MinerU processing completed for document: {document.get('name')}, paragraphs count: {len(document.get('paragraphs', []))}")
+                                
+                            except Exception as e:
+                                # 如果MinerU处理失败，保持原有段落
+                                maxkb_logger.error(f"MinerU processing failed for document {document.get('name')}: {str(e)}", exc_info=True)
+                                # 保持原有段落不变
+            
             # 插入文档
             for document in instance_list:
                 document_paragraph_dict_model = DocumentSerializers.Create.get_document_paragraph_model(

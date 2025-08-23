@@ -7,7 +7,8 @@ COPY ui ui
 RUN cd ui && ls -la && if [ -d "dist" ]; then exit 0; fi && \
     npm install --prefer-offline --no-audit && \
     npm install -D concurrently && \
-    NODE_OPTIONS="--max-old-space-size=8192" npx concurrently "npm run build" "npm run build-chat" && \
+    NODE_OPTIONS="--max-old-space-size=16384" npm run build && \
+    NODE_OPTIONS="--max-old-space-size=16384" npm run build-chat && \
     find . -maxdepth 1 ! -name '.' ! -name 'dist' ! -name 'public' -exec rm -rf {} +
 
 FROM ghcr.io/1panel-dev/maxkb-base:python3.11-pg17.6 AS stage-build
@@ -22,7 +23,8 @@ RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
     fi
 
 ARG DEPENDENCIES="                    \
-        python3-pip"
+        python3-pip                    \
+        gettext"
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends $DEPENDENCIES && \
@@ -78,7 +80,20 @@ WORKDIR /opt/maxkb-app
 COPY --from=stage-build /opt/maxkb-app /opt/maxkb-app
 COPY --from=stage-build /opt/py3 /opt/py3
 
-RUN chmod 755 /tmp
+# Install LibreOffice from local tar.gz for MinerU PPT conversion
+COPY resources/LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz* /tmp/resources/
+RUN cd /tmp && \
+    cat resources/LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz* > resources/LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz && \
+    tar -xzf resources/LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz && \
+    dpkg -i LibreOffice_25.2.3.2_Linux_x86-64_deb/DEBS/*.deb || apt-get update && apt-get install -f -y && \
+    rm -rf LibreOffice_25.2.3.2_Linux_x86-64_deb && \
+    rm resources/LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz && \
+    rm resources/LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz* && \
+    rm -f /usr/bin/soffice && \
+    ln -s /opt/libreoffice25.2/program/soffice /usr/bin/soffice && \
+    apt-get clean all && \
+    rm -rf /var/lib/apt/lists/* && \
+    chmod 755 /tmp
 
 EXPOSE 8080
 VOLUME /opt/maxkb
