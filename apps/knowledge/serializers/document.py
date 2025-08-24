@@ -1136,6 +1136,11 @@ class DocumentSerializers(serializers.Serializer):
         @staticmethod
         def post_embedding(document_list, knowledge_id, workspace_id):
             for document_dict in document_list:
+                # 跳过高级学习文档（已经通过异步任务处理）
+                if document_dict.get('is_advanced_learning'):
+                    from common.utils.logger import maxkb_logger
+                    maxkb_logger.info(f"Skipping refresh for advanced learning document: {document_dict.get('id')}")
+                    continue
                 DocumentSerializers.Operate(data={
                     'knowledge_id': knowledge_id,
                     'document_id': document_dict.get('id'),
@@ -1202,11 +1207,11 @@ class DocumentSerializers(serializers.Serializer):
                     document_model = document_model_list[idx]
                     maxkb_logger.info(f"Submitting async advanced learning task for document: {document_model.id}")
                     
-                    # 设置文档状态为解析中
+                    # 设置文档状态为排队中
                     ListenerManagement.update_status(
                         QuerySet(Document).filter(id=document_model.id),
                         TaskType.EMBEDDING,
-                        State.PARSING
+                        State.PENDING
                     )
                     
                     # 提交异步任务
@@ -1248,7 +1253,7 @@ class DocumentSerializers(serializers.Serializer):
             if len(document_model_list) == 0:
                 return [], knowledge_id, workspace_id
             query_set = query_set.filter(**{'id__in': [d.id for d in document_model_list]})
-            return native_search(
+            document_result_list = native_search(
                 {
                     'document_custom_sql': query_set,
                     'order_by_query': QuerySet(Document).order_by('-create_time', 'id')
@@ -1257,7 +1262,16 @@ class DocumentSerializers(serializers.Serializer):
                     os.path.join(PROJECT_DIR, "apps", "knowledge", 'sql', 'list_document.sql')
                 ),
                 with_search_one=False
-            ), knowledge_id, workspace_id
+            )
+            
+            # 标记高级学习文档
+            for idx, document in enumerate(instance_list):
+                llm_model_id = document.get('llm_model_id')
+                vision_model_id = document.get('vision_model_id')
+                if llm_model_id and vision_model_id and idx < len(document_result_list):
+                    document_result_list[idx]['is_advanced_learning'] = True
+                    
+            return document_result_list, knowledge_id, workspace_id
 
         def batch_sync(self, instance: Dict, with_valid=True):
             if with_valid:
@@ -1438,12 +1452,12 @@ class DocumentSerializers(serializers.Serializer):
             if not mineru_api_type:
                 raise AppApiException(500, _('MinerU API not configured'))
             
-            # 更新文档状态为解析中（而不是排队中）
+            # 更新文档状态为排队中
             for document_id in document_id_list:
                 ListenerManagement.update_status(
                     QuerySet(Document).filter(id=document_id),
                     TaskType.EMBEDDING,
-                    State.PARSING
+                    State.PENDING
                 )
             
             # 调用异步任务处理文档
