@@ -45,16 +45,16 @@ from common.utils.fork import Fork
 from common.utils.logger import maxkb_logger
 from common.utils.split_model import get_split_model, flat_map
 from knowledge.models import Knowledge, Paragraph, Problem, Document, KnowledgeType, ProblemParagraphMapping, State, \
-    TaskType, File, FileSourceType
+    TaskType, File, FileSourceType, get_default_status
 from knowledge.serializers.common import ProblemParagraphManage, BatchSerializer, \
     get_embedding_model_id_by_knowledge_id, MetaSerializer, write_image, zip_dir
 from knowledge.serializers.paragraph import ParagraphSerializers, ParagraphInstanceSerializer, \
     delete_problems_and_mappings
-from knowledge.task.embedding import embedding_by_document, delete_embedding_by_document_list, \
+from knowledge.tasks.embedding import embedding_by_document, delete_embedding_by_document_list, \
     delete_embedding_by_document, delete_embedding_by_paragraph_ids, embedding_by_document_list, \
     update_embedding_knowledge_id
-from knowledge.task.generate import generate_related_by_document_id
-from knowledge.task.sync import sync_web_document
+from knowledge.tasks.generate import generate_related_by_document_id
+from knowledge.tasks.sync import sync_web_document
 from maxkb.const import PROJECT_DIR
 from models_provider.models import Model
 from oss.serializers.file import FileSerializer
@@ -198,6 +198,12 @@ class DocumentBatchGenerateRelatedSerializer(serializers.Serializer):
 
 class DocumentMigrateSerializer(serializers.Serializer):
     document_id_list = serializers.ListField(required=True, label=_('document id list'))
+
+
+class DocumentBatchAdvancedLearningSerializer(serializers.Serializer):
+    id_list = serializers.ListField(required=True, label=_('document id list'))
+    llm_model = serializers.CharField(required=True, label=_('llm model id'))
+    vision_model = serializers.CharField(required=True, label=_('vision model id'))
 
 
 class BatchEditHitHandlingSerializer(serializers.Serializer):
@@ -866,6 +872,11 @@ class DocumentSerializers(serializers.Serializer):
         @staticmethod
         def get_document_paragraph_model(knowledge_id, instance: Dict):
             source_meta = {'source_file_id': instance.get('source_file_id')} if instance.get('source_file_id') else {}
+            # 添加MinerU模型参数到meta
+            if instance.get('llm_model_id'):
+                source_meta['llm_model_id'] = instance.get('llm_model_id')
+            if instance.get('vision_model_id'):
+                source_meta['vision_model_id'] = instance.get('vision_model_id')
             meta = {**instance.get('meta'), **source_meta} if instance.get('meta') is not None else source_meta
             meta = convert_uuid_to_str(meta)
 
@@ -1156,99 +1167,10 @@ class DocumentSerializers(serializers.Serializer):
                 maxkb_logger.info(f"Processing document: {document.get('name')}, llm_model_id: {llm_model_id}, vision_model_id: {vision_model_id}")
                 
                 if llm_model_id or vision_model_id:
-                    maxkb_logger.info(f"Document {document.get('name')} is MinerU type, processing with MinerU handler")
-                    source_file_id = document.get('source_file_id')
-                    maxkb_logger.info(f"Source file ID: {source_file_id}")
-                    if source_file_id:
-                        # 获取源文件
-                        source_file = QuerySet(File).filter(id=source_file_id).first()
-                        maxkb_logger.info(f"Source file found: {source_file is not None}")
-                        if source_file:
-                            try:
-                                # 使用MinerU处理器重新解析文档
-                                from common.handle.impl.text.mineru_split_handle import MinerUSplitHandle
-                                from common.utils.split_model import get_split_model
-                                import io
-                                
-                                # 检查MinerU配置
-                                mineru_api_type = os.environ.get('MINERU_API_TYPE', '')
-                                if not mineru_api_type:
-                                    maxkb_logger.warning(f"MinerU API not configured, skipping MinerU processing for document: {document.get('name')}")
-                                    continue
-                                
-                                maxkb_logger.info(f"MinerU API configured: {mineru_api_type}")
-                                mineru_handler = MinerUSplitHandle()
-                                
-                                # 获取文件内容
-                                file_content = source_file.get_bytes()
-                                temp_file = io.BytesIO(file_content)
-                                temp_file.name = source_file.file_name
-                                
-                                # 从现有段落中提取分段模式
-                                # 获取用户在预览时设置的分段规则
-                                pattern_list = []
-                                if 'paragraphs' in document and len(document['paragraphs']) > 0:
-                                    # 尝试从元数据或其他地方获取分段模式
-                                    # 这里我们需要从前端传递分段规则
-                                    patterns = document.get('split_patterns', [])
-                                    if patterns:
-                                        pattern_list = [get_split_model(pattern) for pattern in patterns if pattern]
-                                
-                                def get_buffer(file):
-                                    file.seek(0)
-                                    return file.read()
-                                    
-                                def save_image(image_list):
-                                    if image_list is not None and len(image_list) > 0:
-                                        exist_image_list = [str(i.get('id')) for i in
-                                                            QuerySet(File).filter(id__in=[i.id for i in image_list]).values('id')]
-                                        save_image_list = [image for image in image_list if not exist_image_list.__contains__(str(image.id))]
-                                        save_image_list = list({img.id: img for img in save_image_list}.values())
-                                        for file in save_image_list:
-                                            file_bytes = file.meta.pop('content')
-                                            file.meta['knowledge_id'] = knowledge_id
-                                            file.source_type = FileSourceType.KNOWLEDGE
-                                            file.source_id = knowledge_id
-                                            file.save(file_bytes)
-                                
-                                # 使用MinerU处理，不传递is_preview参数，这样MinerU会被使用
-                                maxkb_logger.info(f"Using MinerU to process document: {document.get('name')}")
-                                paragraphs = mineru_handler.handle(
-                                    temp_file, 
-                                    pattern_list, 
-                                    False,  # with_filter
-                                    0,  # limit (0表示不限制)
-                                    get_buffer,
-                                    save_image
-                                )
-                                
-                                # 如果原来有问题列表，需要保留
-                                if 'paragraphs' in document and document['paragraphs']:
-                                    # 尝试将原有的问题列表合并到新的段落中
-                                    old_problems = {}
-                                    for old_para in document['paragraphs']:
-                                        if 'content' in old_para and 'problem_list' in old_para:
-                                            old_problems[old_para['content'][:100]] = old_para['problem_list']
-                                    
-                                    # 为新段落添加问题列表（如果内容相似）
-                                    for new_para in paragraphs:
-                                        content_key = new_para.get('content', '')[:100]
-                                        if content_key in old_problems:
-                                            new_para['problem_list'] = old_problems[content_key]
-                                
-                                # 替换文档的段落为MinerU处理后的结果
-                                maxkb_logger.info(f"MinerU returned {len(paragraphs) if paragraphs else 0} paragraphs")
-                                if paragraphs and len(paragraphs) > 0:
-                                    maxkb_logger.info(f"First paragraph sample: {paragraphs[0] if paragraphs else 'None'}")
-                                    document['paragraphs'] = paragraphs
-                                else:
-                                    maxkb_logger.warning(f"MinerU returned empty paragraphs, keeping original paragraphs")
-                                maxkb_logger.info(f"MinerU processing completed for document: {document.get('name')}, paragraphs count: {len(document.get('paragraphs', []))}")
-                                
-                            except Exception as e:
-                                # 如果MinerU处理失败，保持原有段落
-                                maxkb_logger.error(f"MinerU processing failed for document {document.get('name')}: {str(e)}", exc_info=True)
-                                # 保持原有段落不变
+                    maxkb_logger.info(f"Document {document.get('name')} is MinerU type, will process asynchronously")
+                    # MinerU类型的文档，保存基本信息，不处理段落
+                    # 段落处理将通过异步任务进行
+                    document['paragraphs'] = []  # 清空段落，等待异步处理
             
             # 插入文档
             for document in instance_list:
@@ -1270,7 +1192,44 @@ class DocumentSerializers(serializers.Serializer):
             )
             # 插入文档
             QuerySet(Document).bulk_create(document_model_list) if len(document_model_list) > 0 else None
-            # 批量插入段落
+            
+            # 处理高级学习文档的异步任务
+            for idx, document in enumerate(instance_list):
+                llm_model_id = document.get('llm_model_id')
+                vision_model_id = document.get('vision_model_id')
+                if llm_model_id and vision_model_id and document_model_list:
+                    # 找到对应的文档模型
+                    document_model = document_model_list[idx]
+                    maxkb_logger.info(f"Submitting async advanced learning task for document: {document_model.id}")
+                    
+                    # 设置文档状态为解析中
+                    ListenerManagement.update_status(
+                        QuerySet(Document).filter(id=document_model.id),
+                        TaskType.EMBEDDING,
+                        State.PARSING
+                    )
+                    
+                    # 提交异步任务
+                    try:
+                        from knowledge.tasks.advanced_learning import advanced_learning_by_document
+                        advanced_learning_by_document.delay(
+                            str(document_model.id),
+                            str(knowledge_id),
+                            self.data.get('workspace_id', ''),
+                            llm_model_id,
+                            vision_model_id
+                        )
+                        maxkb_logger.info(f"Advanced learning task submitted for document {document_model.id}")
+                    except Exception as e:
+                        maxkb_logger.error(f"Failed to submit advanced learning task: {str(e)}")
+                        # 如果提交失败，更新状态为失败
+                        ListenerManagement.update_status(
+                            QuerySet(Document).filter(id=document_model.id),
+                            TaskType.EMBEDDING,
+                            State.FAILURE
+                        )
+            
+            # 批量插入段落（只为非高级学习文档）
             if len(paragraph_model_list) > 0:
                 for document in document_model_list:
                     max_position = Paragraph.objects.filter(document_id=document.id).aggregate(
@@ -1437,6 +1396,79 @@ class DocumentSerializers(serializers.Serializer):
                     generate_related_by_document_id.delay(document_id, model_id, prompt, state_list)
             except AlreadyQueued as e:
                 pass
+
+
+    class BatchAdvancedLearning(serializers.Serializer):
+        workspace_id = serializers.CharField(required=True, label=_('workspace id'))
+        knowledge_id = serializers.UUIDField(required=True, label=_('knowledge id'))
+
+        def is_valid(self, *, raise_exception=False):
+            super().is_valid(raise_exception=True)
+            workspace_id = self.data.get('workspace_id')
+            query_set = QuerySet(Knowledge).filter(id=self.data.get('knowledge_id'))
+            if workspace_id:
+                query_set = query_set.filter(workspace_id=workspace_id)
+            if not query_set.exists():
+                raise AppApiException(500, _('Knowledge id does not exist'))
+
+        def batch_advanced_learning(self, instance: Dict, with_valid=True):
+            if with_valid:
+                self.is_valid(raise_exception=True)
+            
+            document_id_list = instance.get("id_list", [])
+            llm_model_id = instance.get("llm_model")
+            vision_model_id = instance.get("vision_model")
+            
+            if not document_id_list:
+                raise AppApiException(500, _('Document list is empty'))
+            if not llm_model_id or not vision_model_id:
+                raise AppApiException(500, _('Model selection is required'))
+            
+            knowledge_id = self.data.get('knowledge_id')
+            workspace_id = self.data.get('workspace_id')
+            
+            # 获取知识库
+            knowledge = QuerySet(Knowledge).filter(id=knowledge_id).first()
+            if not knowledge:
+                raise AppApiException(500, _('Knowledge not found'))
+            
+            # 检查MinerU配置
+            import os
+            mineru_api_type = os.environ.get('MINERU_API_TYPE', '')
+            if not mineru_api_type:
+                raise AppApiException(500, _('MinerU API not configured'))
+            
+            # 更新文档状态为解析中（而不是排队中）
+            for document_id in document_id_list:
+                ListenerManagement.update_status(
+                    QuerySet(Document).filter(id=document_id),
+                    TaskType.EMBEDDING,
+                    State.PARSING
+                )
+            
+            # 调用异步任务处理文档
+            try:
+                from knowledge.tasks.advanced_learning import batch_advanced_learning
+                batch_advanced_learning.delay(
+                    document_id_list,
+                    str(knowledge_id),
+                    workspace_id,
+                    llm_model_id,
+                    vision_model_id
+                )
+                maxkb_logger.info(f"Submitted advanced learning tasks for {len(document_id_list)} documents")
+            except Exception as e:
+                maxkb_logger.error(f"Failed to submit advanced learning tasks: {str(e)}")
+                # 如果提交任务失败，更新状态为失败
+                for document_id in document_id_list:
+                    ListenerManagement.update_status(
+                        QuerySet(Document).filter(id=document_id),
+                        TaskType.EMBEDDING,
+                        State.FAILURE
+                    )
+                raise AppApiException(500, _('Failed to submit advanced learning tasks'))
+            
+            return True
 
 
 class FileBufferHandle:

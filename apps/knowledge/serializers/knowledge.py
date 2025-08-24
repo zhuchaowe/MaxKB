@@ -33,9 +33,9 @@ from knowledge.models import Knowledge, KnowledgeScope, KnowledgeType, Document,
 from knowledge.serializers.common import ProblemParagraphManage, drop_knowledge_index, get_embedding_model_id_by_knowledge_id, MetaSerializer, \
     GenerateRelatedSerializer, get_embedding_model_by_knowledge_id, list_paragraph, write_image, zip_dir
 from knowledge.serializers.document import DocumentSerializers
-from knowledge.task.embedding import embedding_by_knowledge, delete_embedding_by_knowledge
-from knowledge.task.generate import generate_related_by_knowledge_id
-from knowledge.task.sync import sync_web_knowledge, sync_replace_web_knowledge
+from knowledge.tasks.embedding import embedding_by_knowledge, delete_embedding_by_knowledge
+from knowledge.tasks.generate import generate_related_by_knowledge_id
+from knowledge.tasks.sync import sync_web_knowledge, sync_replace_web_knowledge
 from maxkb.conf import PROJECT_DIR
 from models_provider.models import Model
 from system_manage.models import WorkspaceUserResourcePermission, AuthTargetType

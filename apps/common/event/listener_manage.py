@@ -275,7 +275,7 @@ class ListenerManagement:
                 return
             maxkb_logger.info(_('Start--->Embedding document: {document_id}').format(document_id=document_id)
                               )
-            # 批量修改状态为PADDING
+            # 批量修改状态为STARTED
             ListenerManagement.update_status(QuerySet(Document).filter(id=document_id), TaskType.EMBEDDING,
                                              State.STARTED)
 

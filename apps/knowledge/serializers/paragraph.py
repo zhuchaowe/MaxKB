@@ -18,11 +18,11 @@ from knowledge.models import Paragraph, Problem, Document, ProblemParagraphMappi
 from knowledge.serializers.common import ProblemParagraphObject, ProblemParagraphManage, \
     get_embedding_model_id_by_knowledge_id, update_document_char_length, BatchSerializer
 from knowledge.serializers.problem import ProblemInstanceSerializer, ProblemSerializer, ProblemSerializers
-from knowledge.task.embedding import embedding_by_paragraph, enable_embedding_by_paragraph, \
+from knowledge.tasks.embedding import embedding_by_paragraph, enable_embedding_by_paragraph, \
     disable_embedding_by_paragraph, \
     delete_embedding_by_paragraph, embedding_by_problem as embedding_by_problem_task, delete_embedding_by_paragraph_ids, \
     embedding_by_problem, delete_embedding_by_source, update_embedding_document_id
-from knowledge.task.generate import generate_related_by_paragraph_id_list
+from knowledge.tasks.generate import generate_related_by_paragraph_id_list
 
 
 class ParagraphSerializer(serializers.ModelSerializer):

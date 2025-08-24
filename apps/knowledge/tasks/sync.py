@@ -23,7 +23,7 @@ from ops import celery_app
 
 @celery_app.task(base=QueueOnce, once={'keys': ['knowledge_id']}, name='celery:sync_web_knowledge')
 def sync_web_knowledge(knowledge_id: str, url: str, selector: str):
-    from knowledge.task.handler import get_save_handler
+    from knowledge.tasks.handler import get_save_handler
 
     try:
         maxkb_logger.info(
@@ -40,7 +40,7 @@ def sync_web_knowledge(knowledge_id: str, url: str, selector: str):
 
 @celery_app.task(base=QueueOnce, once={'keys': ['knowledge_id']}, name='celery:sync_replace_web_knowledge')
 def sync_replace_web_knowledge(knowledge_id: str, url: str, selector: str):
-    from knowledge.task.handler import get_sync_handler
+    from knowledge.tasks.handler import get_sync_handler
 
     try:
         maxkb_logger.info(
@@ -56,7 +56,7 @@ def sync_replace_web_knowledge(knowledge_id: str, url: str, selector: str):
 
 @celery_app.task(name='celery:sync_web_document')
 def sync_web_document(knowledge_id, source_url_list: List[str], selector: str):
-    from knowledge.task.handler import get_sync_web_document_handler
+    from knowledge.tasks.handler import get_sync_web_document_handler
 
     handler = get_sync_web_document_handler(knowledge_id)
     for source_url in source_url_list:

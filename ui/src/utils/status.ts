@@ -20,6 +20,8 @@ interface StateInterface {
   REVOKE: '4'
   // 取消成功
   REVOKED: '5'
+  // 解析中
+  PARSING: '6'
   IGNORED: 'n'
 }
 const TaskType: TaskTypeInterface = {
@@ -40,6 +42,8 @@ const State: StateInterface = {
   REVOKE: '4',
   // 取消成功
   REVOKED: '5',
+  // 解析中
+  PARSING: '6',
   IGNORED: 'n'
 }
 class Status {

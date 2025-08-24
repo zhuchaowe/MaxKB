@@ -111,4 +111,5 @@ export default {
   copyTitle: '副本',
   professional: '购买专业版',
   sync: '同步',
+  shared: '共享',
 }

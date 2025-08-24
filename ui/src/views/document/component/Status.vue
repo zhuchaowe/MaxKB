@@ -35,6 +35,10 @@
         <el-icon class="is-loading color-primary"><Loading /></el-icon>
         {{ stateMap[aggStatus.value](aggStatus.key) }}
       </el-text>
+      <el-text v-else-if="aggStatus?.value === State.PARSING">
+        <el-icon class="is-loading color-primary"><Loading /></el-icon>
+        {{ stateMap[aggStatus.value](aggStatus.key) }}
+      </el-text>
     </template>
   </el-popover>
 </template>
@@ -49,6 +53,7 @@ const checkList: Array<string> = [
   State.REVOKE,
   State.STARTED,
   State.PENDING,
+  State.PARSING,
   State.FAILURE,
   State.REVOKED,
   State.SUCCESS
@@ -82,6 +87,7 @@ const stateMap: any = {
   [State.REVOKED]: (type: number) => t('views.document.fileStatus.SUCCESS'),
   [State.FAILURE]: (type: number) => t('views.document.fileStatus.FAILURE'),
   [State.SUCCESS]: (type: number) => t('views.document.fileStatus.SUCCESS'),
+  [State.PARSING]: (type: number) => t('views.document.fileStatus.PARSING'),
 }
 </script>
 <style lang="scss" scoped></style>

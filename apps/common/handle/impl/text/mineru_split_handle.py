@@ -41,29 +41,43 @@ class MinerUSplitHandle(BaseSplitHandle):
         return True
     
     def handle(self, file, pattern_list: List, with_filter: bool, limit: int, 
-               get_buffer, save_image):
+               get_buffer, save_image, **kwargs):
         """
         使用MinerU处理文档
         """
         try:
             logger.info(f"MinerUSplitHandle.handle called for file: {file.name if hasattr(file, 'name') else 'unknown'}")
             
-            # 初始化MinerU适配器
+            # 初始化MinerU适配器，传递模型ID（如果提供）
             if not self.mineru_adapter:
                 logger.info("Initializing MinerU adapter")
+                llm_model_id = kwargs.get('llm_model_id')
+                vision_model_id = kwargs.get('vision_model_id')
+                if llm_model_id and vision_model_id:
+                    logger.info(f"Using models: LLM={llm_model_id}, Vision={vision_model_id}")
                 self.mineru_adapter = MinerUAdapter()
             
             # 获取文件内容
             buffer = get_buffer(file)
             logger.info(f"File buffer size: {len(buffer) if buffer else 0} bytes")
             
-            # 处理文档
+            # 处理文档，传递模型ID到适配器
             logger.info("Calling MinerU adapter to process document")
-            result = self.mineru_adapter.process_document(
-                file_content=buffer,
-                file_name=file.name if hasattr(file, 'name') else 'document.pdf',
-                save_image_func=save_image
-            )
+            process_kwargs = {
+                'file_content': buffer,
+                'file_name': file.name if hasattr(file, 'name') else 'document.pdf',
+                'save_image_func': save_image
+            }
+            
+            # 如果有模型ID，传递给适配器
+            llm_model_id = kwargs.get('llm_model_id')
+            vision_model_id = kwargs.get('vision_model_id')
+            if llm_model_id:
+                process_kwargs['llm_model_id'] = llm_model_id
+            if vision_model_id:
+                process_kwargs['vision_model_id'] = vision_model_id
+                
+            result = self.mineru_adapter.process_document(**process_kwargs)
             logger.info(f"MinerU adapter returned result with {len(result.get('sections', []))} sections")
             
             # 转换为段落格式

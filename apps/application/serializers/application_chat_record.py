@@ -26,7 +26,7 @@ from common.utils.common import post
 from knowledge.models import Paragraph, Document, Problem, ProblemParagraphMapping, Knowledge
 from knowledge.serializers.common import get_embedding_model_id_by_knowledge_id, update_document_char_length
 from knowledge.serializers.paragraph import ParagraphSerializers
-from knowledge.task.embedding import embedding_by_paragraph, embedding_by_paragraph_list
+from knowledge.tasks.embedding import embedding_by_paragraph, embedding_by_paragraph_list
 
 
 class ChatRecordSerializerModel(serializers.ModelSerializer):

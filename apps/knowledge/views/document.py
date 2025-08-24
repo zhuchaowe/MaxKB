@@ -13,7 +13,7 @@ from knowledge.api.document import DocumentSplitAPI, DocumentBatchAPI, DocumentB
     DocumentReadAPI, DocumentEditAPI, DocumentDeleteAPI, TableDocumentCreateAPI, QaDocumentCreateAPI, \
     WebDocumentCreateAPI, CancelTaskAPI, BatchCancelTaskAPI, SyncWebAPI, RefreshAPI, BatchEditHitHandlingAPI, \
     DocumentTreeReadAPI, DocumentSplitPatternAPI, BatchRefreshAPI, BatchGenerateRelatedAPI, TemplateExportAPI, \
-    DocumentExportAPI, DocumentMigrateAPI, DocumentDownloadSourceAPI
+    DocumentExportAPI, DocumentMigrateAPI, DocumentDownloadSourceAPI, BatchAdvancedLearningAPI
 from knowledge.serializers.common import get_knowledge_operation_object
 from knowledge.serializers.document import DocumentSerializers
 from knowledge.views.common import get_knowledge_document_operation_object, get_document_operation_object_batch, \
@@ -817,3 +817,39 @@ class TableTemplate(APIView):
         tags=[_('Knowledge Base/Documentation')])  # type: ignore
     def get(self, request: Request):
         return DocumentSerializers.Export(data={'type': request.query_params.get('type')}).table_export(with_valid=True)
+
+
+class BatchAdvancedLearning(APIView):
+    authentication_classes = [TokenAuth]
+
+    @extend_schema(
+        methods=['PUT'],
+        summary=_('Batch advanced learning with MinerU'),
+        operation_id=_('Batch advanced learning with MinerU'),  # type: ignore
+        request=BatchAdvancedLearningAPI.get_request(),
+        parameters=BatchAdvancedLearningAPI.get_parameters(),
+        responses=BatchAdvancedLearningAPI.get_response(),
+        tags=[_('Knowledge Base/Documentation')]  # type: ignore
+    )
+    @has_permissions(
+        PermissionConstants.KNOWLEDGE_DOCUMENT_VECTOR.get_workspace_knowledge_permission(),
+        PermissionConstants.KNOWLEDGE_DOCUMENT_VECTOR.get_workspace_permission_workspace_manage_role(),
+        PermissionConstants.KNOWLEDGE_DOCUMENT_EDIT.get_workspace_knowledge_permission(),
+        PermissionConstants.KNOWLEDGE_DOCUMENT_EDIT.get_workspace_permission_workspace_manage_role(),
+        RoleConstants.WORKSPACE_MANAGE.get_workspace_role(),
+        ViewPermission([RoleConstants.USER.get_workspace_role()],
+                       [PermissionConstants.KNOWLEDGE.get_workspace_knowledge_permission()], CompareConstants.AND),
+    )
+    @log(
+        menu='document', operate="Batch advanced learning",
+        get_operation_object=lambda r, keywords: get_knowledge_document_operation_object(
+            get_knowledge_operation_object(keywords.get('knowledge_id')),
+            get_document_operation_object_batch(r.data.get('id_list')),
+        ),
+    )
+    def put(self, request: Request, workspace_id: str, knowledge_id: str):
+        return result.success(
+            DocumentSerializers.BatchAdvancedLearning(
+                data={'workspace_id': workspace_id, 'knowledge_id': knowledge_id}
+            ).batch_advanced_learning(request.data)
+        )

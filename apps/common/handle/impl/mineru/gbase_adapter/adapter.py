@@ -11,7 +11,7 @@ GPTBase平台适配器 - 实现GPTBase特定的功能
 import contextlib
 from typing import Any, Dict
 from .logger import logger
-
+import os
 from .gptbase_utils import GPTBaseUtils, GZeroUtils
 from .config_gptbase import GPTBaseMinerUConfig
 from ..base_parser import PlatformAdapter, BaseMinerUExtractor, ProcessingResult

@@ -362,6 +362,35 @@ const putBatchRefresh: (
 }
 
 /**
+ * 批量高级学习（重新解析）
+ * @param 参数 knowledge_id,
+ *{
+  "id_list": [
+    "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+  ],
+  "llm_model": "model_id",
+  "vision_model": "model_id"
+}
+ */
+const putBatchAdvancedLearning: (
+  knowledge_id: string,
+  idList: string[],
+  models: { llmModel: string; visionModel: string },
+  loading?: Ref<boolean>,
+) => Promise<Result<boolean>> = (knowledge_id, idList, models, loading) => {
+  return put(
+    `${prefix.value}/${knowledge_id}/document/batch_advanced_learning`,
+    {
+      id_list: idList,
+      llm_model: models.llmModel,
+      vision_model: models.visionModel,
+    },
+    undefined,
+    loading,
+  )
+}
+
+/**
  * 批量同步文档
  * @param 参数 knowledge_id,
  */
@@ -582,6 +611,7 @@ export default {
   putBatchGenerateRelated,
   putBatchEditHitHandling,
   putBatchRefresh,
+  putBatchAdvancedLearning,
   putMulSyncDocument,
   putMigrateMulDocument,
   postQADocument,

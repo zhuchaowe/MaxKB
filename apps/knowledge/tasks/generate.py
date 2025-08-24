@@ -12,7 +12,7 @@ from common.event import ListenerManagement
 from common.utils.logger import maxkb_logger
 from common.utils.page_utils import page, page_desc
 from knowledge.models import Paragraph, Document, Status, TaskType, State
-from knowledge.task.handler import save_problem
+from knowledge.tasks.handler import save_problem
 from models_provider.models import Model
 from models_provider.tools import get_model
 from ops import celery_app

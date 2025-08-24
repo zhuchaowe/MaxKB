@@ -242,7 +242,7 @@ class MinerUAdapter:
             raise
     
     def process_document(self, file_content: bytes, file_name: str, 
-                        save_image_func=None) -> Dict[str, Any]:
+                        save_image_func=None, **kwargs) -> Dict[str, Any]:
         """
         处理文档并返回结构化内容
         
@@ -250,6 +250,7 @@ class MinerUAdapter:
             file_content: 文件内容字节流
             file_name: 文件名
             save_image_func: 保存图片的函数
+            **kwargs: 额外参数，包括llm_model_id和vision_model_id
             
         Returns:
             包含sections的字典，每个section包含content、title和images
@@ -276,6 +277,14 @@ class MinerUAdapter:
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
                         try:
+                            # 提取模型ID参数
+                            llm_model_id = kwargs.get('llm_model_id')
+                            vision_model_id = kwargs.get('vision_model_id')
+                            if llm_model_id and vision_model_id:
+                                logger.info(f"使用指定模型处理文档: LLM={llm_model_id}, Vision={vision_model_id}")
+                                # TODO: 将模型ID传递给extractor
+                                # 目前暂时使用默认配置，后续可以在这里设置模型
+                            
                             result = loop.run_until_complete(
                                 self.extractor.process_file(tmp_file_path, file_name)
                             )

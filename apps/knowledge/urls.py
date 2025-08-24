@@ -26,6 +26,7 @@ urlpatterns = [
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_sync', views.DocumentView.BatchSync.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_delete', views.DocumentView.BatchDelete.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_refresh', views.DocumentView.BatchRefresh.as_view()),
+    path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_advanced_learning', views.BatchAdvancedLearning.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/batch_generate_related', views.DocumentView.BatchGenerateRelated.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/web', views.WebDocumentView.as_view()),
     path('workspace/<str:workspace_id>/knowledge/<str:knowledge_id>/document/qa', views.QaDocumentView.as_view()),

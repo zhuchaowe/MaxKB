@@ -42,7 +42,7 @@ export default {
 
   fileType: {
     txt: {
-      label: '文本文件',
+      label: '普通学习',
       tip1: '1、文件上传前，建议规范文件的分段标识',
     },
     table: {
@@ -97,6 +97,7 @@ export default {
     name: '文件名称',
     char_length: '字符数',
     paragraph: '分段',
+    learningType: '学习方式',
     all: '全部',
     updateTime: '更新时间',
   },
@@ -109,6 +110,7 @@ export default {
     GENERATE: '生成中',
     SYNC: '同步中',
     REVOKE: '取消中',
+    PARSING: '学习中',
     finish: '完成',
   },
   enableStatus: {
@@ -180,5 +182,24 @@ export default {
     tip2: '系统不存储原始文档，导入文档前，建议规范文档的分段标识。',
     allCheck: '全选',
     errorMessage1: '请选择文档',
+  },
+  advancedLearning: {
+    title: '高级学习',
+    button: '高级学习',
+    llmModel: '大语言模型',
+    visionModel: '视觉模型',
+    selectLlmModel: '请选择大语言模型',
+    selectVisionModel: '请选择视觉模型',
+    llmModelRequired: '请选择大语言模型',
+    visionModelRequired: '请选择视觉模型',
+    tip1: '高级学习提供高质量的 PDF 和 PPT 文档解析，支持复杂表格、图片、公式等内容',
+    tip2: '原有段落和索引将被删除，文档将使用高级学习重新解析',
+    tip3: '解析过程可能需要较长时间，请耐心等待',
+    successMessage: '高级学习任务已启动',
+    loadModelsFailed: '加载模型列表失败',
+  },
+  learningType: {
+    regular: '普通学习',
+    advanced: '高级学习',
   },
 }

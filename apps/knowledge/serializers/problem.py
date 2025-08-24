@@ -13,7 +13,7 @@ from common.exception.app_exception import AppApiException
 from common.utils.common import get_file_content
 from knowledge.models import Problem, ProblemParagraphMapping, Paragraph, Knowledge, SourceType
 from knowledge.serializers.common import get_embedding_model_id_by_knowledge_id
-from knowledge.task.embedding import delete_embedding_by_source_ids, update_problem_embedding, embedding_by_data_list
+from knowledge.tasks.embedding import delete_embedding_by_source_ids, update_problem_embedding, embedding_by_data_list
 from maxkb.const import PROJECT_DIR
 
 

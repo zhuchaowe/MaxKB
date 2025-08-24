@@ -47,6 +47,8 @@ class State(Enum):
     REVOKE = '4'
     # 取消成功
     REVOKED = '5'
+    # 解析中
+    PARSING = '6'
     # 忽略
     IGNORED = 'n'
 

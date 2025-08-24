@@ -6,7 +6,8 @@ from common.result import DefaultResultSerializer
 from knowledge.serializers.common import BatchSerializer
 from knowledge.serializers.document import DocumentInstanceSerializer, DocumentWebInstanceSerializer, \
     CancelInstanceSerializer, BatchCancelInstanceSerializer, DocumentRefreshSerializer, BatchEditHitHandlingSerializer, \
-    DocumentBatchRefreshSerializer, DocumentBatchGenerateRelatedSerializer, DocumentMigrateSerializer
+    DocumentBatchRefreshSerializer, DocumentBatchGenerateRelatedSerializer, DocumentMigrateSerializer, \
+    DocumentBatchAdvancedLearningSerializer
 
 
 class DocumentSplitAPI(APIMixin):
@@ -467,6 +468,35 @@ class DocumentExportAPI(APIMixin):
                 required=True,
             ),
         ]
+
+    @staticmethod
+    def get_response():
+        return DefaultResultSerializer
+
+
+class BatchAdvancedLearningAPI(APIMixin):
+    @staticmethod
+    def get_parameters():
+        return [
+            OpenApiParameter(
+                name="workspace_id",
+                description="工作空间id",
+                type=OpenApiTypes.STR,
+                location='path',
+                required=True,
+            ),
+            OpenApiParameter(
+                name="knowledge_id",
+                description="知识库id",
+                type=OpenApiTypes.STR,
+                location='path',
+                required=True,
+            ),
+        ]
+
+    @staticmethod
+    def get_request():
+        return DocumentBatchAdvancedLearningSerializer
 
     @staticmethod
     def get_response():

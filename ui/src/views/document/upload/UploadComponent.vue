@@ -11,11 +11,11 @@
     <div class="mt-16 mb-16">
       <el-radio-group v-model="form.fileType" @change="radioChange" class="app-radio-button-group">
         <el-radio-button value="txt">{{ $t('views.document.fileType.txt.label') }}</el-radio-button>
+        <el-radio-button value="mineru">高级学习</el-radio-button>
         <el-radio-button value="table">{{
           $t('views.document.fileType.table.label')
         }}</el-radio-button>
         <el-radio-button value="QA">{{ $t('views.document.fileType.QA.label') }}</el-radio-button>
-        <el-radio-button value="mineru">MinerU</el-radio-button>
       </el-radio-group>
     </div>
 
@@ -140,7 +140,7 @@
           <AppIcon iconName="app-warning-colorful" style="font-size: 16px"></AppIcon>
         </div>
         <div class="ml-16 lighter">
-          <p>1. MinerU 提供高质量的 PDF 和 PPT 文档解析，支持复杂表格、图片、公式等内容</p>
+          <p>1. 高级学习提供高质量的 PDF 和 PPT 文档解析，支持复杂表格、图片、公式等内容</p>
           <p>2. 支持的文件格式：PDF、PPT、PPTX</p>
           <p>
             3. {{ $t('views.document.tip.fileLimitCountTip1') }} {{ file_count_limit }}
@@ -361,7 +361,7 @@ const loadModels = async () => {
       // 分离大语言模型和视觉模型
       llmModels.value = response.data.filter((m: any) => m.model_type === 'LLM')
       visionModels.value = response.data.filter((m: any) => 
-        m.model_type === 'IMAGE' || m.model_type === 'LLM' // LLM模型也可能支持视觉功能
+        m.model_type === 'IMAGE' // 只显示IMAGE类型的视觉模型
       )
     }
   } catch (error) {

@@ -45,6 +45,12 @@
                   >{{ $t('views.knowledge.setting.vectorization') }}
                 </el-button>
                 <el-button
+                  @click="openAdvancedLearningDialog"
+                  :disabled="multipleSelection.length === 0"
+                  v-if="permissionPrecise.doc_vector(id)"
+                  >{{ $t('views.document.advancedLearning.button') }}
+                </el-button>
+                <el-button
                   @click="openGenerateDialog()"
                   :disabled="multipleSelection.length === 0"
                   v-if="permissionPrecise.doc_generate(id)"
@@ -238,6 +244,19 @@
               min-width="90"
               sortable
             />
+
+            <el-table-column
+              prop="learning_type"
+              :label="$t('views.document.table.learningType')"
+              align="center"
+              min-width="100"
+            >
+              <template #default="{ row }">
+                <el-tag :type="row.learning_type === 'advanced' ? 'danger' : 'success'" size="small">
+                  {{ $t(`views.document.learningType.${row.learning_type || 'regular'}`) }}
+                </el-tag>
+              </template>
+            </el-table-column>
 
             <el-table-column width="130">
               <template #header>
@@ -635,6 +654,7 @@
     </div>
 
     <EmbeddingContentDialog ref="embeddingContentDialogRef"></EmbeddingContentDialog>
+    <AdvancedLearningDialog ref="advancedLearningDialogRef"></AdvancedLearningDialog>
 
     <ImportDocumentDialog ref="ImportDocumentDialogRef" :title="title" @refresh="refresh" />
     <SyncWebDialog ref="SyncWebDialogRef" @refresh="refresh" />
@@ -662,6 +682,7 @@ import useStore from '@/stores'
 import StatusValue from '@/views/document/component/Status.vue'
 import GenerateRelatedDialog from '@/components/generate-related-dialog/index.vue'
 import EmbeddingContentDialog from '@/views/document/component/EmbeddingContentDialog.vue'
+import AdvancedLearningDialog from '@/views/document/component/AdvancedLearningDialog.vue'
 import { TaskType, State } from '@/utils/status'
 import { t } from '@/locales'
 import permissionMap from '@/permission'
@@ -746,6 +767,7 @@ const getTaskState = (status: string, taskType: number) => {
 const beforePagination = computed(() => common.paginationConfig[storeKey])
 const beforeSearch = computed(() => common.search[storeKey])
 const embeddingContentDialogRef = ref<InstanceType<typeof EmbeddingContentDialog>>()
+const advancedLearningDialogRef = ref<InstanceType<typeof AdvancedLearningDialog>>()
 const SyncWebDialogRef = ref()
 const loading = ref(false)
 let interval: any
@@ -1039,6 +1061,24 @@ function batchRefresh() {
       })
   }
   embeddingContentDialogRef.value?.open(embeddingBatchDocument)
+}
+
+function openAdvancedLearningDialog() {
+  const arr: string[] = multipleSelection.value.map((v) => v.id)
+  const advancedLearningDocument = (models: { llmModel: string; visionModel: string }) => {
+    loadSharedApi({ type: 'document', systemType: apiType.value })
+      .putBatchAdvancedLearning(id, arr, models, loading)
+      .then(() => {
+        MsgSuccess(t('views.document.advancedLearning.successMessage'))
+        multipleTableRef.value?.clearSelection()
+        advancedLearningDialogRef.value?.close()
+        getList()
+      })
+      .catch(() => {
+        advancedLearningDialogRef.value?.close()
+      })
+  }
+  advancedLearningDialogRef.value?.open(advancedLearningDocument)
 }
 
 function downloadDocument(row: any) {
