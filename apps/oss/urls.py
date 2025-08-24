@@ -6,4 +6,5 @@ app_name = 'oss'
 
 urlpatterns = [
     path('oss/file', views.FileView.as_view()),
+    # storage路由已移至主URL配置中
 ]

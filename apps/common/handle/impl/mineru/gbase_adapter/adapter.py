@@ -45,6 +45,11 @@ class GPTBaseAdapter(PlatformAdapter):
     
     async def upload_file(self, file_path: str, options: Any = None) -> str:
         """上传文件 - PDF使用S3特殊处理，图片使用gzero上传"""
+        # 如果在测试模式下，直接返回原图地址
+        if os.getenv('MINERU_TEST_FILE'):
+            logger.info(f"Gbase: Test mode - returning original path: {file_path}")
+            return file_path 
+        
         import os
         
         # 判断文件类型

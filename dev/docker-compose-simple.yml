@@ -15,12 +15,50 @@ services:
       - ../tmp:/tmp
       # 数据持久化
       - ~/.maxkb:/opt/maxkb
+      # MinerU图片存储目录持久化
+      - ~/.maxkb/storage:/opt/maxkb/storage:rw
     environment:
       # 开启调试模式
       DJANGO_DEBUG: "True"
       PYTHONUNBUFFERED: "1"
       MAXKB_LOG_LEVEL: "DEBUG"
+      
+      # MinerU 配置
+      MINERU_PARSER_CACHE: "True"
+      MINERU_MULTIMODAL_REFINEMENT: "True"
+      # MinerU 图片存储路径
+      MAXKB_STORAGE_PATH: "/opt/maxkb/storage"
+      
       MINERU_API_TYPE: "self_hosted"
       MINERU_API_URL: "http://mineru:8000"
+      
+      # MINERU_API_TYPE: "cloud"
+      # MINERU_API_URL: "https://mineru.net"
+      # MINERU_API_KEY: "eyJ0eXBlIjoiSldUIiwiYWxnIjoiSFM1MTIifQ.eyJqdGkiOiI2OTYwMDEwNiIsInJvbCI6IlJPTEVfUkVHSVNURVIiLCJpc3MiOiJPcGVuWExhYiIsImlhdCI6MTc1NTE2MzQ5OCwiY2xpZW50SWQiOiJsa3pkeDU3bnZ5MjJqa3BxOXgydyIsInBob25lIjoiIiwib3BlbklkIjpudWxsLCJ1dWlkIjoiYTQwODk5NjMtNDI1OS00MWM3LWE3NWItY2IzZTQ4NTRjYWIwIiwiZW1haWwiOiIiLCJleHAiOjE3NTYzNzMwOTh9.88m9JSKQhkwJ557jCTFOgmdjeAfpXzxy2QDINaJ0rfHfnMNBxQt47aHr2jABeuxW-fXm8S5AO7zWWTXEGx8BxA"
+      
+      # 配置队列大小
+      MINERU_QUEUE_SIZE: "50"
+      # 配置处理超时时间（秒）
+      MINERU_PROCESSING_TIMEOUT: "7200"
+      # 配置各线程数量（支持多线程）
+      MINERU_PARSER_THREADS: "1"
+      MINERU_REFINER_THREADS: "3"
+      MINERU_RECOGNIZER_THREADS: "3"
+      MINERU_UPLOADER_THREADS: "1"
+      
+      MINERU_BATCH_PROCESSING: "true"
+      MINERU_BATCH_SIZE: "10"
+      # 启用/禁用过滤
+      MINERU_SKIP_SMALL_IMAGES: "true"
+      # 每页最多图片数
+      MINERU_MAX_IMAGES_PER_PAGE: "10"
+      # 文档最多图片数
+      MINERU_MAX_IMAGES_PER_DOCUMENT: "200"
+      # 最小图片尺寸（像素）
+      MINERU_MIN_IMAGE_SIZE: "10000"
+      # 最大图片尺寸（像素）
+      MINERU_MAX_IMAGE_SIZE: "10000000"
+      # 过滤无意义图片
+      MINERU_FILTER_MEANINGLESS: "true"
     restart: unless-stopped
     # 使用镜像默认的启动命令

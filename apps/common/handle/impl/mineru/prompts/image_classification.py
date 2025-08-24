@@ -56,18 +56,6 @@ IMAGE_CLASSIFICATION_CONTEXT_BASE = IMAGE_CLASSIFICATION_BASE + """
 - description字段请控制在100-200字以内，需要：
   - 解释图片与周围文本的关系
   - 说明图片在文档中的作用
-- context_relevance 字段，表示图片与上下文的相关性（high/medium/low）
-
-# 输出格式：
-```json
-{
-   "type": "分类类型",
-   "title": "简短标题",
-   "description": "详细描述",
-   "ocr_content": "提取的文字内容（如适用）",
-   "context_relevance": "相关性等级"
-}
-```
 
 # 上下文信息：
 """

@@ -187,8 +187,13 @@ class MaxKBModelClient:
             llm_model = await self.get_llm_model(model_id)
             
             if not llm_model:
-                self.logger.warning(f"No model available for {model_id}, returning empty response")
-                return ""
+                self.logger.warning(f"No model available for {model_id}, returning error JSON")
+                import json
+                return json.dumps({
+                    "type": "brief_description",
+                    "title": "No Model",
+                    "description": "LLM model not available"
+                })
             
             # 调用模型 - 使用 sync_to_async 包装同步调用
             response = await sync_to_async(llm_model.invoke)(messages)
@@ -203,8 +208,13 @@ class MaxKBModelClient:
                 
         except Exception as e:
             self.logger.error(f"Chat completion failed: {str(e)}")
-            # 返回空字符串而不是抛出异常，让处理继续
-            return ""
+            # 返回错误JSON而不是空字符串
+            import json
+            return json.dumps({
+                "type": "brief_description",
+                "title": "Error",
+                "description": f"Chat completion failed: {str(e)}"
+            })
     
     async def vision_completion(self, model_id: str, image_path: str, prompt: str, **kwargs) -> str:
         """
@@ -224,16 +234,48 @@ class MaxKBModelClient:
             vision_model = await self.get_vision_model(model_id)
             
             if not vision_model:
-                self.logger.warning(f"No vision model available for {model_id}, returning empty response")
-                return ""
+                self.logger.warning(f"No vision model available for {model_id}, returning error JSON")
+                # Return a valid JSON response instead of empty string
+                import json
+                return json.dumps({
+                    "type": "brief_description",
+                    "title": "No Model",
+                    "description": "Vision model not available"
+                })
             
-            # 构造消息
+            # 读取图片并转换为base64
+            import base64
+            import os
+            
+            if not os.path.exists(image_path):
+                self.logger.error(f"Image file not found: {image_path}")
+                import json
+                return json.dumps({
+                    "type": "brief_description",
+                    "title": "File Error",
+                    "description": f"Image file not found: {image_path}"
+                })
+            
+            try:
+                with open(image_path, 'rb') as img_file:
+                    image_data = img_file.read()
+                    image_base64 = base64.b64encode(image_data).decode('utf-8')
+            except Exception as e:
+                self.logger.error(f"Failed to read/encode image {image_path}: {str(e)}")
+                import json
+                return json.dumps({
+                    "type": "brief_description",
+                    "title": "Image Error",
+                    "description": f"Failed to read/encode image: {str(e)}"
+                })
+            
+            # 构造消息 - 使用base64编码的图片
             messages = [
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"file://{image_path}"}}
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
                     ]
                 }
             ]
@@ -251,8 +293,13 @@ class MaxKBModelClient:
                 
         except Exception as e:
             self.logger.error(f"Vision completion failed: {str(e)}")
-            # 返回空字符串而不是抛出异常，让处理继续
-            return ""
+            # 返回错误JSON而不是空字符串
+            import json
+            return json.dumps({
+                "type": "brief_description",
+                "title": "Vision Error",
+                "description": f"Vision completion failed: {str(e)}"
+            })
     
     async def batch_chat_completion(self, model_id: str, batch_messages: List[List[Dict]], **kwargs) -> List[str]:
         """

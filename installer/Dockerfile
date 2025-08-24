@@ -75,6 +75,11 @@ ENV MAXKB_VERSION="${DOCKER_IMAGE_TAG} (build at ${BUILD_AT}, commit: ${GITHUB_C
     PATH=/opt/py3/bin:$PATH \
     PIP_TARGET=/opt/maxkb/python-packages
 
+# Install poppler-utils for PDF processing (required by MinerU)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends poppler-utils && \
+    apt-get clean all && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/maxkb-app
 COPY --from=stage-build /opt/maxkb-app /opt/maxkb-app

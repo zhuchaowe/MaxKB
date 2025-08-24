@@ -72,6 +72,65 @@ def pro():
 if not settings.DEBUG:
     pro()
 
+# 添加storage路由 - 使用函数视图避免类导入问题
+def serve_storage_file(request, file_path):
+    """
+    直接提供storage目录下的文件访问
+    """
+    import os
+    import mimetypes
+    from django.http import HttpResponse, Http404
+    from django.utils.encoding import escape_uri_path
+    
+    # 基础存储路径 - 支持本地开发和Docker环境
+    base_path = os.getenv('MAXKB_STORAGE_PATH', '/opt/maxkb/storage')
+    # 如果是本地开发环境，使用相对路径
+    if not os.path.exists(base_path):
+        base_path = './tmp/maxkb/storage'
+    full_path = os.path.join(base_path, file_path)
+    
+    # 安全检查
+    try:
+        real_base = os.path.realpath(base_path)
+        real_path = os.path.realpath(full_path)
+        if not real_path.startswith(real_base):
+            raise Http404("File not found")
+    except (OSError, ValueError):
+        raise Http404("File not found")
+    
+    # 检查文件是否存在
+    if not os.path.exists(full_path) or not os.path.isfile(full_path):
+        raise Http404("File not found")
+    
+    # 读取文件
+    try:
+        with open(full_path, 'rb') as f:
+            file_content = f.read()
+    except IOError:
+        raise Http404("File not found")
+    
+    # 获取MIME类型
+    content_type, _ = mimetypes.guess_type(full_path)
+    if not content_type:
+        content_type = 'application/octet-stream'
+    
+    # 构建响应
+    response = HttpResponse(file_content, content_type=content_type)
+    
+    # 设置响应头
+    file_name = os.path.basename(full_path)
+    if content_type.startswith('image/'):
+        response['Content-Disposition'] = f'inline; filename="{escape_uri_path(file_name)}"'
+        response['Cache-Control'] = 'public, max-age=2592000'  # 30天缓存
+    else:
+        response['Content-Disposition'] = f'attachment; filename="{escape_uri_path(file_name)}"'
+        response['Cache-Control'] = 'public, max-age=86400'  # 1天缓存
+    
+    return response
+
+# 添加storage路由
+urlpatterns.insert(0, re_path(r'^storage/(?P<file_path>.*)$', serve_storage_file, name='storage_file'))
+
 
 def get_index_html(index_path):
     file = open(index_path, "r", encoding='utf-8')

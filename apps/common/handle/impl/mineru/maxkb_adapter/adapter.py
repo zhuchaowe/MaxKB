@@ -29,6 +29,11 @@ class MaxKBAdapter(PlatformAdapter):
         """初始化MaxKB适配器"""
         self.file_storage = FileStorageClient()
         self.model_client = maxkb_model_client
+        
+        # 导入配置以获取存储路径
+        from .config_maxkb import MaxKBMinerUConfig
+        self.config = MaxKBMinerUConfig()
+        self.storage_path = self.config.file_storage_path
     
     @contextlib.asynccontextmanager
     async def trace_context(self, trace_id: str):
@@ -51,19 +56,68 @@ class MaxKBAdapter(PlatformAdapter):
         logger.debug(f"MaxKB: Released lock for {temp_dir}")
     
     async def upload_file(self, file_path: str, options: Any = None) -> str:
-        """使用MaxKB的文件存储上传文件"""
+        """使用MaxKB的文件存储上传文件 - 直接复制文件到存储目录"""
+        import shutil
+        import uuid
+        
+        logger.info(f"MaxKB: upload_file called with path={file_path}, options={options}")
+        
         # 如果在测试模式下，直接返回原图地址
-        if os.getenv('MINERU_TEST_FILE'):
-            logger.info(f"MaxKB: Test mode - returning original path: {file_path}")
-            return file_path
+        #if os.getenv('MINERU_TEST_FILE'):
+        #    logger.info(f"MaxKB: Test mode - returning original path: {file_path}")
+        #    return file_path
         
         try:
-            # 使用MaxKB的文件存储客户端上传
-            uploaded_url = await self.file_storage.upload_image(file_path)
-            return uploaded_url
+            # 确保文件存在
+            if not os.path.exists(file_path):
+                logger.warning(f"MaxKB: File not found: {file_path}")
+                return file_path
+            
+            # 获取knowledge_id（如果在options中提供）
+            knowledge_id = None
+            if options and isinstance(options, (tuple, list)) and len(options) > 0:
+                knowledge_id = options[0]
+            
+            # 创建存储目录结构
+            # 使用 knowledge_id 或 'mineru' 作为子目录
+            sub_dir = knowledge_id if knowledge_id else 'mineru'
+            storage_dir = os.path.join(self.storage_path, sub_dir, 'images')
+            
+            # 确保存储目录存在
+            os.makedirs(storage_dir, exist_ok=True)
+            
+            # 生成唯一的文件名，保留原始扩展名
+            file_ext = os.path.splitext(file_path)[1]
+            file_name = f"{uuid.uuid4().hex}{file_ext}"
+            dest_path = os.path.join(storage_dir, file_name)
+            
+            # 复制文件到存储目录
+            shutil.copy2(file_path, dest_path)
+            
+            # 返回相对路径或URL格式
+            # 生成相对于storage根目录的路径
+            relative_path = os.path.relpath(dest_path, self.storage_path)
+            # 确保路径使用正斜杠（兼容所有系统）
+            relative_path = relative_path.replace(os.path.sep, '/')
+            
+            # 根据环境配置生成完整的URL
+            # 检查是否配置了基础URL
+            base_url = os.getenv('MAXKB_BASE_URL', '')
+            if base_url:
+                # 如果有基础URL，生成完整的URL
+                result_url = f"{base_url.rstrip('/')}/storage/{relative_path}"
+            else:
+                # 生成相对URL，直接使用/storage/路径
+                result_url = f"/storage/{relative_path}"
+            
+            logger.info(f"MaxKB: Copied file {file_path} -> {dest_path}")
+            logger.debug(f"MaxKB: Returning URL: {result_url}")
+            
+            return result_url
+            
         except Exception as e:
-            logger.error(f"MaxKB: Failed to upload file {file_path}: {str(e)}")
-            # 如果上传失败，返回本地路径
+            logger.error(f"MaxKB: Failed to copy file {file_path}: {str(e)}")
+            # 如果复制失败，返回本地路径
             return file_path
     
     def get_logger(self):

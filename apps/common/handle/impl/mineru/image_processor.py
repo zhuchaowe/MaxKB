@@ -517,11 +517,16 @@ class MinerUImageProcessor:
         
         This is an enhanced version that uses context when available.
         """
+        self.logger.info(f"mineru-image: _classify_single_image_with_context called for {os.path.basename(image_filepath)}")
+        
         # If no context, fall back to original method
         if not context:
+            self.logger.info(f"mineru-image: no context, falling back to original method")
             return await self._classify_single_image(learn_type, image_filepath, temp_dir, src_name, hint)
         
         try:
+            self.logger.info(f"mineru-image: processing with context for {os.path.basename(image_filepath)}")
+            
             if not os.path.exists(image_filepath):
                 raise FileNotFoundError(f"Image file not found: {image_filepath}")
             
@@ -534,6 +539,9 @@ class MinerUImageProcessor:
             
             # Build context-aware prompt with language
             prompt = self._build_context_aware_prompt(context, language_code)
+            
+            # Log the final prompt for debugging
+            self.logger.info(f"mineru-image: Final prompt for {os.path.basename(image_filepath)}:\n{prompt[:1000]}...")
             
             messages = [
                 {'role': 'system', 'content': prompt},
@@ -549,19 +557,34 @@ class MinerUImageProcessor:
             start_time = time.time()
             
             try:
+                self.logger.info(f"mineru-image: calling vision model for {os.path.basename(image_filepath)}")
                 response = await self.config.call_litellm(
                     model_type=learn_type,
                     messages=messages,
                     temperature=0.0,
                     timeout=120.0  # Increased timeout to 120 seconds for vision models
                 )
+                self.logger.info(f"mineru-image: received response from vision model")
                 
                 duration = time.time() - start_time
                 
+                # Log raw response for debugging
+                raw_response = response.choices[0].message.content if response.choices else ""
+                self.logger.info(f"mineru-image: raw AI response (first 500 chars): {raw_response[:500] if raw_response else 'Empty response'}")
+                # Log complete response for debugging
+                self.logger.info(f"mineru-image: FULL AI response for {os.path.basename(image_filepath)}:\n{raw_response}")
+                
+                # Log usage info
+                if hasattr(response, 'usage'):
+                    self.logger.info(f"mineru-image: usage - prompt_tokens={getattr(response.usage, 'prompt_tokens', 0)}, "
+                                   f"completion_tokens={getattr(response.usage, 'completion_tokens', 0)}")
+                else:
+                    self.logger.warning(f"mineru-image: no usage info in response")
+                
                 # Parse enhanced response
                 result = self._parse_context_aware_response(
-                    response.choices[0].message.content,
-                    response.usage,
+                    raw_response,
+                    response.usage if hasattr(response, 'usage') else None,
                     duration
                 )
                 
@@ -569,15 +592,21 @@ class MinerUImageProcessor:
                 result['has_context'] = True
                 result['page_idx'] = context.page_idx
                 
+                # Log successful classification
+                self.logger.info(f"mineru-image: classified {os.path.basename(image_filepath)} as {result.get('type', 'unknown')} "
+                                f"(tokens: in={result.get('input_tokens', 0)}, out={result.get('output_tokens', 0)})")
+                
             except Exception as e:
                 self.logger.error(f"mineru-image: classification error: {str(e)}")
+                self.logger.info(f"mineru-image: classification failed for {os.path.basename(image_filepath)}, returning meaningless")
                 result = {
                     'type': 'meaningless',
                     'content': f'Classification error: {str(e)}',
                     'input_tokens': 0,
                     'output_tokens': 0,
                     'dura': time.time() - start_time,
-                    'has_context': True
+                    'has_context': True,
+                    'error': str(e)
                 }
             
             return result
@@ -652,13 +681,16 @@ class MinerUImageProcessor:
             # Parse JSON
             result_json = json.loads(response_content)
             
+            # Log the raw classification response for debugging
+            self.logger.info(f"mineru-image: parsed JSON response: {result_json}")
+            
             # Build result dictionary
             result = {
                 'type': result_json.get('type', 'meaningless'),
                 'title': result_json.get('title', ''),
                 'content': result_json.get('description', ''),
-                'input_tokens': usage.prompt_tokens if hasattr(usage, 'prompt_tokens') else 0,
-                'output_tokens': usage.completion_tokens if hasattr(usage, 'completion_tokens') else 0,
+                'input_tokens': usage.prompt_tokens if usage and hasattr(usage, 'prompt_tokens') else 0,
+                'output_tokens': usage.completion_tokens if usage and hasattr(usage, 'completion_tokens') else 0,
                 'dura': duration
             }
             
@@ -670,13 +702,14 @@ class MinerUImageProcessor:
             
         except Exception as e:
             self.logger.error(f"mineru-image: failed to parse context response: {str(e)}")
+            self.logger.debug(f"mineru-image: response that failed to parse: {response_content[:500] if response_content else 'Empty'}")
             # Return a basic result
             return {
                 'type': 'brief_description',
                 'title': '',
                 'content': response_content[:200] if response_content else '',
-                'input_tokens': usage.prompt_tokens if hasattr(usage, 'prompt_tokens') else 0,
-                'output_tokens': usage.completion_tokens if hasattr(usage, 'completion_tokens') else 0,
+                'input_tokens': usage.prompt_tokens if usage and hasattr(usage, 'prompt_tokens') else 0,
+                'output_tokens': usage.completion_tokens if usage and hasattr(usage, 'completion_tokens') else 0,
                 'dura': duration
             }
     
@@ -735,6 +768,9 @@ class MinerUImageProcessor:
                 
                 # Parse response
                 response_content = response.choices[0].message.content
+                
+                # Log complete response for debugging
+                self.logger.info(f"mineru-image: FULL AI response for {os.path.basename(image_filepath)} (no context):\n{response_content}")
                 
                 # Extract JSON from markdown code block if present
                 if '```json' in response_content and '```' in response_content:
@@ -797,7 +833,8 @@ class MinerUImageProcessor:
                     'dura': time.time() - start_time,
                 }
             
-            self.logger.info(f"mineru-image: classified {image_filepath} as {result.get('type', 'unknown')}")
+            # Enhanced logging to debug meaningless classification
+            self.logger.info(f"mineru-image: classified {image_filepath} as {result.get('type', 'unknown')} - tokens: in={result.get('input_tokens', 0)}, out={result.get('output_tokens', 0)}, error={result.get('error', 'None')}")
             
             return result
             

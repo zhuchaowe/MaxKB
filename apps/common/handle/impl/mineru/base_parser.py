@@ -268,12 +268,35 @@ class BaseMinerUExtractor:
                 self.logger.info(f"mineru-parser: found {len(cached_pages)} cached pages")
             
             # 获取上传回调（通过适配器）
-            upload_callback = lambda file_path: self.adapter.upload_file(file_path, upload_options)
+            # 总是创建upload_callback，让适配器决定如何处理
+            # upload_func 需要接受4个参数: filepath, filename, upload_options, binary_data
+            async def upload_callback(filepath, filename, options, binary_data=None):
+                # 如果有 binary_data，说明图片被压缩了，需要先保存到临时文件
+                if binary_data:
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(filename)[1], delete=False) as tmp:
+                        tmp.write(binary_data)
+                        tmp_path = tmp.name
+                    
+                    result = await self.adapter.upload_file(tmp_path, upload_options)
+                    # 清理临时文件
+                    try:
+                        os.unlink(tmp_path)
+                    except:
+                        pass
+                elif filepath:
+                    result = await self.adapter.upload_file(filepath, upload_options)
+                else:
+                    self.logger.warning(f"No file path or binary data provided for {filename}")
+                    return None, None
+                
+                # 返回 (url, upload_key) 格式
+                return result, None
             
             # 并行处理文档
             completed_tasks = await self.parallel_processor.process_document_with_cache(
                 pdf_path, temp_dir, src_fileid, is_ppt_format,
-                len(pages_info), upload_callback if upload_options else None, upload_options,
+                len(pages_info), upload_callback, upload_options,
                 cached_pages=cached_pages,
                 save_callback=lambda idx, data: self._save_page_cache(temp_dir, idx, data)
             )

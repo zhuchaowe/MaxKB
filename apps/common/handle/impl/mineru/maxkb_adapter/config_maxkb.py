@@ -28,7 +28,7 @@ class MaxKBMinerUConfig(MinerUConfig):
         
         # File storage settings
         self.file_storage_type = os.getenv('MAXKB_STORAGE_TYPE', 'local')  # local, s3, oss
-        self.file_storage_path = os.getenv('MAXKB_STORAGE_PATH', '/tmp/maxkb/storage')
+        self.file_storage_path = os.getenv('MAXKB_STORAGE_PATH', '/opt/maxkb/storage')
         self.file_storage_bucket = os.getenv('MAXKB_STORAGE_BUCKET')
         
         # Model client settings
@@ -133,37 +133,48 @@ class MaxKBMinerUConfig(MinerUConfig):
             
             # Call appropriate method based on content type
             if has_images:
-                # Extract image and text for vision model
+                # Extract image and combine all text content for vision model
                 image_path = None
-                prompt = ""
+                combined_prompt = ""
+                
+                # First, collect system message if exists
                 for msg in messages:
-                    if isinstance(msg.get('content'), list):
-                        for content_item in msg['content']:
-                            if content_item.get('type') == 'text':
-                                prompt = content_item.get('text', '')
-                            elif content_item.get('type') == 'image_url':
-                                image_url = content_item.get('image_url', {})
-                                if isinstance(image_url, dict):
-                                    url = image_url.get('url', '')
-                                    if url.startswith('data:'):
-                                        # Handle base64 image
-                                        import base64
-                                        import tempfile
-                                        # Extract base64 data
-                                        base64_data = url.split(',')[1] if ',' in url else url
-                                        image_data = base64.b64decode(base64_data)
-                                        # Save to temp file
-                                        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                                            tmp.write(image_data)
-                                            image_path = tmp.name
-                                    else:
-                                        image_path = url
+                    if msg.get('role') == 'system':
+                        combined_prompt = msg.get('content', '') + "\n\n"
+                        break
+                
+                # Then extract user message content
+                for msg in messages:
+                    if msg.get('role') == 'user':
+                        if isinstance(msg.get('content'), list):
+                            for content_item in msg['content']:
+                                if content_item.get('type') == 'text':
+                                    combined_prompt += content_item.get('text', '')
+                                elif content_item.get('type') == 'image_url':
+                                    image_url = content_item.get('image_url', {})
+                                    if isinstance(image_url, dict):
+                                        url = image_url.get('url', '')
+                                        if url.startswith('data:'):
+                                            # Handle base64 image
+                                            import base64
+                                            import tempfile
+                                            # Extract base64 data
+                                            base64_data = url.split(',')[1] if ',' in url else url
+                                            image_data = base64.b64decode(base64_data)
+                                            # Save to temp file
+                                            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+                                                tmp.write(image_data)
+                                                image_path = tmp.name
+                                        else:
+                                            image_path = url
+                        elif isinstance(msg.get('content'), str):
+                            combined_prompt += msg.get('content', '')
                 
                 if image_path:
                     response_text = await maxkb_model_client.vision_completion(
                         model_id=model_id,
                         image_path=image_path,
-                        prompt=prompt,
+                        prompt=combined_prompt,
                         **kwargs
                     )
                 else:
@@ -215,8 +226,14 @@ class MaxKBMinerUConfig(MinerUConfig):
                         'total_tokens': 0
                     })()
             
-            # Return empty response on error to continue processing
-            return MockResponse("")
+            # Return a valid JSON response on error to prevent parsing issues
+            # This will be parsed as a brief_description type
+            error_response = json.dumps({
+                "type": "brief_description",
+                "title": "Error",
+                "description": f"Model call failed: {str(e)}"
+            })
+            return MockResponse(error_response)
     
     def _get_default_llm_model_id(self) -> str:
         """获取默认的LLM模型ID"""

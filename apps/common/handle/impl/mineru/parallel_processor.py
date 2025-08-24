@@ -610,16 +610,26 @@ class ParallelMinerUProcessor:
                                 xref = image_info.xref
                                 if xref in classification_results:
                                     result = classification_results[xref]
-                                    
-                                    # Apply meaningless filter if configured
-                                    if self.config.filter_meaningless_images and result.get('type') == 'meaningless':
-                                        self.logger.info(f"Recognizer: filtering out meaningless image {image_info.filename}")
-                                        # Still store the classification for reference
-                                        task.image_descriptions[image_info.filename] = result
-                                    else:
-                                        # Either filter is disabled or image is meaningful
-                                        meaningful_images.append(image_info)
-                                        task.image_descriptions[image_info.filename] = result
+                                else:
+                                    # No classification result - likely an error occurred
+                                    self.logger.warning(f"Recognizer: no classification result for {image_info.filename}, creating default result")
+                                    result = {
+                                        'type': 'meaningless',
+                                        'content': 'Classification failed - no result returned',
+                                        'input_tokens': 0,
+                                        'output_tokens': 0,
+                                        'error': 'No classification result'
+                                    }
+                                
+                                # Apply meaningless filter if configured
+                                if self.config.filter_meaningless_images and result.get('type') == 'meaningless':
+                                    self.logger.info(f"Recognizer: filtering out meaningless image {image_info.filename}")
+                                    # Still store the classification for reference
+                                    task.image_descriptions[image_info.filename] = result
+                                else:
+                                    # Either filter is disabled or image is meaningful
+                                    meaningful_images.append(image_info)
+                                    task.image_descriptions[image_info.filename] = result
                                         
                             # Send to upload queue if there are images to upload
                             # Note: if filter is disabled, we upload all classified images including meaningless ones
@@ -977,25 +987,24 @@ class ParallelMinerUProcessor:
                             f"images_count={len(task.images)}")
             
             if has_content and (has_no_images or has_processed_images):
-                # Integrate image descriptions into content before marking complete
-                if task.processed_images and task.image_descriptions:
-                    self.logger.info(f"Page {task.page_idx + 1} ready for image integration:")
-                    self.logger.info(f"  - processed_images: {list(task.processed_images.keys())}")
+                # Integrate images into content if we have any image descriptions
+                # This ensures meaningless images are properly removed from content
+                if task.image_descriptions:
+                    self.logger.info(f"Page {task.page_idx + 1} processing image integration:")
+                    self.logger.info(f"  - processed_images: {list(task.processed_images.keys()) if task.processed_images else 'None (filtered out)'}")
                     self.logger.info(f"  - image_descriptions: {list(task.image_descriptions.keys())}")
                     self.logger.info(f"  - content length before: {len(task.refined_content)} chars")
                     
                     task.refined_content = self._integrate_images_into_content(
                         task.refined_content,
                         task.image_descriptions,
-                        task.processed_images,
+                        task.processed_images or {},  # Pass empty dict if None
                         f"{task.src_fileid}_page_{task.page_idx}"
                     )
                     
                     self.logger.info(f"  - content length after: {len(task.refined_content)} chars")
                 else:
-                    self.logger.info(f"Page {task.page_idx + 1} has no images to integrate: "
-                                   f"processed_images={bool(task.processed_images)}, "
-                                   f"image_descriptions={bool(task.image_descriptions)}")
+                    self.logger.info(f"Page {task.page_idx + 1} has no images to process")
                 
                 task.status = TaskStatus.COMPLETED
                 should_mark_complete = True
@@ -1032,96 +1041,109 @@ class ParallelMinerUProcessor:
             # Process each image description
             for filename, desc_info in image_descriptions.items():
                 self.logger.info(f"\nChecking image {filename} for replacement")
-                if filename in uploaded_images:
-                    uploaded_url = uploaded_images[filename]
-                    self.logger.info(f"  - Found in uploaded_images: {uploaded_url}")
-                    
-                    # Extract the hash part from the filename
-                    # This handles filenames like: 390561cb34fd3f951b1d25a252bead1c_page_1_44450601...jpg
-                    # or mineru_image_xxx.png
-                    base_filename = filename.replace('.png', '').replace('.jpg', '').replace('.jpeg', '')
-                    
-                    # Try to extract the hash part (usually the long hex string)
-                    # For mineru images: mineru_image_XXX -> XXX
-                    # For hash-based: XXX_page_N_YYY -> YYY (the last hash)
-                    if 'mineru_image_' in filename:
-                        ref = base_filename.replace('mineru_image_', '')
-                    else:
-                        # Look for the last hash-like pattern
-                        parts = base_filename.split('_')
-                        # Find the longest hex-like string
-                        hash_parts = [p for p in parts if len(p) > 20 and all(c in '0123456789abcdef' for c in p)]
-                        if hash_parts:
-                            ref = hash_parts[-1]  # Use the last hash
-                        else:
-                            ref = base_filename
-                    
-                    # Build replacement content based on image type
-                    img_type = desc_info.get('type', 'brief_description')
-                    title = desc_info.get('title', '')
-                    description = desc_info.get('content', '')
-                    ocr_content = desc_info.get('ocr_content', '')
-                    
-                    # Create the replacement markdown
-                    if img_type == 'meaningless':
-                        # Skip meaningless images
-                        continue
-                    elif img_type == 'structured_content':
-                        # For structured content, include full description
-                        replacement = f"\n\n![{title}]({uploaded_url})\n<!--{description}-->\n\n{ocr_content}\n\n"
-                    else:
-                        # For other types, use a simpler format
-                        if description:
-                            replacement = f"\n\n![{title}]({uploaded_url})\n<!--{description}-->\n"
-                        else:
-                            replacement = f"\n\n![{title}]({uploaded_url})\n\n"
-                    
-                    # Replace various possible image reference patterns
-                    # We need to be flexible because the reference in content might be different from our filename
-                    patterns = []
-                    
-                    # If we found a hash reference, try to match it in various formats
-                    if ref and len(ref) > 20:  # Likely a hash
-                        patterns.extend([
-                            f"!\\[.*?\\]\\(.*?{ref}.*?\\)",         # Match hash anywhere in path
-                            f"!\\[\\]\\(.*?{ref}.*?\\)",            # Empty alt text with hash
-                            f"!\\[.*?\\]\\(images/{ref}\\.[^)]+\\)", # images/hash.ext
-                            f"!\\[\\]\\(images/{ref}\\.[^)]+\\)",    # images/hash.ext with empty alt
-                        ])
-                    
-                    # Always try the full filename patterns
-                    patterns.extend([
-                        f"!\\[.*?\\]\\(.*?{re.escape(filename)}\\)",        # Match exact filename
-                        f"!\\[.*?\\]\\(.*?{re.escape(base_filename)}\\)",   # Match base filename
-                    ])
-                    
-                    # Add generic mineru image pattern if applicable
-                    if 'mineru_image_' in filename:
-                        patterns.append(f"!\\[.*?\\]\\(.*?{filename}\\)")
-                        
-                    self.logger.info(f"  - extracted ref: '{ref}'")
-                    self.logger.info(f"  - trying {len(patterns)} patterns")
-                    
-                    replaced = False
-                    for pattern in patterns:
-                        new_content = re.sub(pattern, replacement, enhanced_content)
-                        if new_content != enhanced_content:
-                            enhanced_content = new_content
-                            replaced = True
-                            self.logger.info(f"Successfully replaced image {filename} using pattern: {pattern}")
-                            break
-                    
-                    if not replaced:
-                        self.logger.warning(f"Failed to replace image reference for: {filename}, ref={ref}")
-                        # Log the first few characters of content to help debugging
-                        sample = enhanced_content[:500] if len(enhanced_content) > 500 else enhanced_content
-                        self.logger.info(f"Content sample: {sample}...")
-                        # Also log the exact patterns we tried
-                        self.logger.info(f"Tried patterns:")
-                        for p in patterns:
-                            self.logger.info(f"  - {p}")
+                
+                # Get image type to determine if it's meaningless
+                img_type = desc_info.get('type', 'brief_description')
+                
+                # Process ALL images that have descriptions
+                # - Meaningless images: remove references (replace with empty string)
+                # - Images not uploaded but classified: also remove (likely filtered)
+                # - Uploaded images: replace with proper markdown
+                uploaded_url = uploaded_images.get(filename, '')
+                
+                if img_type == 'meaningless':
+                    self.logger.info(f"  - Image is meaningless, will remove references")
+                elif filename not in uploaded_images:
+                    self.logger.info(f"  - Image was classified as {img_type} but not uploaded (filtered), will remove references")
+                    # Treat as meaningless for removal purposes
+                    img_type = 'meaningless'
                 else:
-                    self.logger.warning(f"Image {filename} not found in uploaded_images!")
+                    self.logger.info(f"  - Found in uploaded_images: {uploaded_url}")
+                
+                # Extract the hash part from the filename
+                # This handles filenames like: 390561cb34fd3f951b1d25a252bead1c_page_1_44450601...jpg
+                # or mineru_image_xxx.png
+                base_filename = filename.replace('.png', '').replace('.jpg', '').replace('.jpeg', '')
+                
+                # Try to extract the hash part (usually the long hex string)
+                # For mineru images: mineru_image_XXX -> XXX
+                # For hash-based: XXX_page_N_YYY -> YYY (the last hash)
+                if 'mineru_image_' in filename:
+                    ref = base_filename.replace('mineru_image_', '')
+                else:
+                    # Look for the last hash-like pattern
+                    parts = base_filename.split('_')
+                    # Find the longest hex-like string
+                    hash_parts = [p for p in parts if len(p) > 20 and all(c in '0123456789abcdef' for c in p)]
+                    if hash_parts:
+                        ref = hash_parts[-1]  # Use the last hash
+                    else:
+                        ref = base_filename
+                
+                # Build replacement content based on image type
+                # img_type already extracted above
+                title = desc_info.get('title', '')
+                description = desc_info.get('content', '')
+                ocr_content = desc_info.get('ocr_content', '')
+                
+                # Create the replacement markdown
+                if img_type == 'meaningless':
+                    # For meaningless images, we want to remove them entirely
+                    replacement = ""  # Empty string to remove the image reference
+                elif img_type == 'structured_content':
+                    # For structured content, include full description
+                    replacement = f"\n\n![{title}]({uploaded_url})\n<!--{description}-->\n\n{ocr_content}\n\n"
+                else:
+                    # For other types, use a simpler format
+                    if description:
+                        replacement = f"\n\n![{title}]({uploaded_url})\n<!--{description}-->\n"
+                    else:
+                        replacement = f"\n\n![{title}]({uploaded_url})\n\n"
+                
+                # Replace various possible image reference patterns
+                # We need to be flexible because the reference in content might be different from our filename
+                patterns = []
+                
+                # If we found a hash reference, try to match it in various formats
+                if ref and len(ref) > 20:  # Likely a hash
+                    patterns.extend([
+                        f"!\\[.*?\\]\\(.*?{ref}.*?\\)",         # Match hash anywhere in path
+                        f"!\\[\\]\\(.*?{ref}.*?\\)",            # Empty alt text with hash
+                        f"!\\[.*?\\]\\(images/{ref}\\.[^)]+\\)", # images/hash.ext
+                        f"!\\[\\]\\(images/{ref}\\.[^)]+\\)",    # images/hash.ext with empty alt
+                    ])
+                
+                # Always try the full filename patterns
+                patterns.extend([
+                    f"!\\[.*?\\]\\(.*?{re.escape(filename)}\\)",        # Match exact filename
+                    f"!\\[.*?\\]\\(.*?{re.escape(base_filename)}\\)",   # Match base filename
+                ])
+                
+                # Add generic mineru image pattern if applicable
+                if 'mineru_image_' in filename:
+                    patterns.append(f"!\\[.*?\\]\\(.*?{filename}\\)")
+                    
+                self.logger.info(f"  - extracted ref: '{ref}'")
+                self.logger.info(f"  - trying {len(patterns)} patterns")
+                
+                replaced = False
+                for pattern in patterns:
+                    new_content = re.sub(pattern, replacement, enhanced_content)
+                    if new_content != enhanced_content:
+                        enhanced_content = new_content
+                        replaced = True
+                        self.logger.info(f"Successfully replaced image {filename} using pattern: {pattern}")
+                        break
+                
+                if not replaced:
+                    self.logger.warning(f"Failed to replace image reference for: {filename}, ref={ref}")
+                    # Log the first few characters of content to help debugging
+                    sample = enhanced_content[:500] if len(enhanced_content) > 500 else enhanced_content
+                    self.logger.info(f"Content sample: {sample}...")
+                    # Also log the exact patterns we tried
+                    self.logger.info(f"Tried patterns:")
+                    for p in patterns:
+                        self.logger.info(f"  - {p}")
                         
             return enhanced_content
             

@@ -224,10 +224,10 @@ class ImageOptimizer:
                                    upload_options,
                                    max_retries: int = 3,
                                    retry_delay: float = 1.0) -> Tuple[Optional[str], Optional[str]]:
-        if os.getenv('MINERU_TEST_FILE'):
-            return image_info.filepath, None
-        # return image_info.filepath, None
         """上传单个图片（带并发控制和重试机制）"""
+        # 注释掉测试模式，让上传回调能够被调用
+        # if os.getenv('MINERU_TEST_FILE'):
+        #     return image_info.filepath, None
         async with self.upload_semaphore:
             # 处理图片
             image_data, hash_value = await self.process_image_for_upload(image_info)
@@ -344,8 +344,9 @@ class ImageOptimizer:
         async with self.api_semaphore:
             try:
                 # 调用分类函数
+                # classify_func expects: (learn_type, image_filepath, temp_dir, src_name, hint)
                 return await classify_func(
-                    vision_model,
+                    vision_model,  # This is actually learn_type
                     img_data['image_info'].filepath,
                     temp_dir,
                     src_name,

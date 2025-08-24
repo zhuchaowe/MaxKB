@@ -83,7 +83,10 @@ def get_module_logger(module_name):
             pass
     
     # 默认情况，创建独立的logger
-    return logging.getLogger(module_name)
+    module_logger = logging.getLogger(module_name)
+    # 确保使用正确的日志级别
+    module_logger.setLevel(logging.INFO)
+    return module_logger
 
 # 为了兼容性，导出默认logger
 logger = get_module_logger('mineru')
