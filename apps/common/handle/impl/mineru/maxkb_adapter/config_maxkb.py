@@ -12,15 +12,35 @@ from ..config_base import MinerUConfig
 class MaxKBMinerUConfig(MinerUConfig):
     """MaxKB-specific configuration for MinerU"""
     
+    def __init__(self, llm_model_id: str = None, vision_model_id: str = None):
+        """Initialize with MaxKB-specific settings"""
+        # Store the model IDs before calling parent init
+        self._init_llm_model_id = llm_model_id
+        self._init_vision_model_id = vision_model_id
+        # Call parent initialization
+        super().__init__()
+    
     def __post_init__(self):
         """Initialize with MaxKB-specific settings"""
         # Call parent initialization first
         super().__post_init__()
         
-        # MaxKB specific settings from environment or defaults
-        # 如果环境变量中设置了具体的UUID，使用UUID；否则使用默认值或自动检测
-        self.llm_model_id = os.getenv('MAXKB_LLM_MODEL_ID', self._get_default_llm_model_id())
-        self.vision_model_id = os.getenv('MAXKB_VISION_MODEL_ID', self._get_default_vision_model_id())
+        # MaxKB specific settings - use provided IDs first, then environment, then defaults
+        # 优先使用传入的模型ID，其次是环境变量，最后是默认值
+        if hasattr(self, '_init_llm_model_id') and self._init_llm_model_id:
+            self.llm_model_id = self._init_llm_model_id
+        else:
+            self.llm_model_id = os.getenv('MAXKB_LLM_MODEL_ID', self._get_default_llm_model_id())
+        
+        if hasattr(self, '_init_vision_model_id') and self._init_vision_model_id:
+            self.vision_model_id = self._init_vision_model_id
+        else:
+            self.vision_model_id = os.getenv('MAXKB_VISION_MODEL_ID', self._get_default_vision_model_id())
+        
+        # Log the configured model IDs
+        from .logger import get_module_logger
+        logger = get_module_logger('config_maxkb')
+        logger.info(f"MaxKBMinerUConfig initialized with LLM={self.llm_model_id}, Vision={self.vision_model_id}")
         
         # MaxKB API settings
         self.maxkb_api_key = os.getenv('MAXKB_API_KEY')
