@@ -24,17 +24,52 @@ echo "  - 构建时间: ${BUILD_AT}"
 echo "  - Git提交: ${GITHUB_COMMIT}"
 echo ""
 
-# 检查 LibreOffice 资源文件
-echo "检查 LibreOffice 资源文件..."
-if [ ! -f "resources/LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_00" ]; then
-    echo "错误: 缺少 LibreOffice 资源文件"
-    echo "请确保 resources/ 目录下有以下文件:"
+# 创建 resources 目录（如果不存在）
+if [ ! -d "resources" ]; then
+    echo "创建 resources 目录..."
+    mkdir -p resources
+fi
+
+# 下载 LibreOffice 资源文件
+echo "检查并下载 LibreOffice 资源文件..."
+DOWNLOAD_BASE_URL="http://192.168.101.129:5244/d/nas"
+FILES=(
+    "LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_00?sign=aNvKFaEE9QRwTBLP53KgM8Y-22AlXBkb9WsE3CW42-M=:0"
+    "LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_01?sign=20ZZkcY70olgh18Qdh5VVPWI2xQpzRdBTIkA1DsRw50=:0"
+    "LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_02?sign=sbEuEP_xKcZS1YnmHkTtuvi-o5KQweWCVmHM3FwHRII=:0"
+)
+
+for i in "${!FILES[@]}"; do
+    FILE_URL="${DOWNLOAD_BASE_URL}/${FILES[$i]}"
+    FILE_NAME="LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_0${i}"
+    FILE_PATH="resources/${FILE_NAME}"
+    
+    if [ ! -f "${FILE_PATH}" ]; then
+        echo "下载 ${FILE_NAME}..."
+        curl -L -o "${FILE_PATH}" "${FILE_URL}"
+        if [ $? -ne 0 ]; then
+            echo "错误: 下载 ${FILE_NAME} 失败"
+            exit 1
+        fi
+        echo "✓ ${FILE_NAME} 下载完成"
+    else
+        echo "✓ ${FILE_NAME} 已存在，跳过下载"
+    fi
+done
+
+# 验证所有文件是否存在
+echo "验证 LibreOffice 资源文件..."
+if [ ! -f "resources/LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_00" ] || \
+   [ ! -f "resources/LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_01" ] || \
+   [ ! -f "resources/LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_02" ]; then
+    echo "错误: LibreOffice 资源文件不完整"
+    echo "请检查 resources/ 目录下是否有以下文件:"
     echo "  - LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_00"
     echo "  - LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_01"
     echo "  - LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_02"
     exit 1
 fi
-echo "✓ LibreOffice 资源文件存在"
+echo "✓ 所有 LibreOffice 资源文件就绪"
 
 # 停止并删除旧容器（如果存在）
 echo ""
