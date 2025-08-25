@@ -703,6 +703,9 @@ class MinerUAPIClient:
             
             # Step 1: Upload file to accessible URL
             file_url = await self._upload_file_to_accessible_url(pdf_path, src_fileid)
+            self.logger.info(f"mineru-api: uploaded file URL: {file_url}")
+            if not file_url.startswith(('http://', 'https://')):
+                self.logger.warning(f"mineru-api: URL may not be valid for Cloud API: {file_url}")
             # Step 2: Create task for full document
             task_id = await self._create_mineru_task_full_document(file_url, src_fileid)
             

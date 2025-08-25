@@ -178,7 +178,7 @@ class ParallelMinerUProcessor:
         document_batch_info = {}  # {src_fileid: {'batch_size': int, 'total_pages': int}}
         
         # Initialize API client
-        async with MinerUAPIClient(self.config) as api_client:
+        async with MinerUAPIClient(self.config, self.platform_adapter) as api_client:
             while not self.shutdown_event.is_set():
                 try:
                     # Get task from queue (timeout to check shutdown)

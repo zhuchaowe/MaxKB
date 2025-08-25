@@ -111,7 +111,7 @@ class MaxKBAdapter(PlatformAdapter):
                 result_url = f"/storage/{relative_path}"
             
             logger.info(f"MaxKB: Copied file {file_path} -> {dest_path}")
-            logger.debug(f"MaxKB: Returning URL: {result_url}")
+            logger.info(f"MaxKB: Returning URL: {result_url}")
             
             return result_url
             
