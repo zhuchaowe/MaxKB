@@ -73,7 +73,7 @@ echo "检查现有容器..."
 if docker ps -a | grep -q maxkb-dev; then
     echo "发现旧容器，正在停止..."
     cd installer
-    docker-compose down
+    docker compose down
     cd ..
     echo "✓ 旧容器已停止并删除"
 fi
@@ -83,7 +83,7 @@ echo ""
 echo "启动 MaxKB 容器..."
 echo "如果镜像不存在，将自动构建（首次运行可能需要几分钟）..."
 cd installer
-docker-compose up -d --build
+docker compose up -d --build
 
 # 检查启动结果
 if [ $? -eq 0 ]; then
@@ -100,13 +100,13 @@ if [ $? -eq 0 ]; then
     echo "  http://localhost:2008"
     echo ""
     echo "查看日志："
-    echo "  cd installer && docker-compose logs -f"
+    echo "  cd installer && docker compose logs -f"
     echo ""
     echo "停止容器："
-    echo "  cd installer && docker-compose down"
+    echo "  cd installer && docker compose down"
     echo ""
     echo "重启容器："
-    echo "  cd installer && docker-compose restart"
+    echo "  cd installer && docker compose restart"
     echo ""
 else
     cd ..
