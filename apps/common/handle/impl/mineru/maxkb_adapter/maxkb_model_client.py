@@ -67,7 +67,7 @@ class MaxKBModelClient:
                 ).first()
                 
                 if model:
-                    self.logger.info(f"Using default model: {model.name} (ID: {model.id})")
+                    self.logger.info(f"Using default LLM model: {model.name} (ID: {model.id}, model_name: {model.model_name})")
             
             if not model:
                 raise ValueError(f"No LLM model available (requested: {model_id})")
@@ -144,7 +144,7 @@ class MaxKBModelClient:
                     ).first()
                 
                 if model:
-                    self.logger.info(f"Using default model: {model.name} (ID: {model.id})")
+                    self.logger.info(f"Using default vision model: {model.name} (ID: {model.id}, model_name: {model.model_name})")
             
             if not model:
                 raise ValueError(f"No vision model available (requested: {model_id})")
@@ -183,6 +183,7 @@ class MaxKBModelClient:
             模型响应文本
         """
         try:
+            self.logger.info(f"Calling chat completion with model_id: {model_id}")
             # 获取模型实例
             llm_model = await self.get_llm_model(model_id)
             
@@ -207,7 +208,7 @@ class MaxKBModelClient:
                 return str(response)
                 
         except Exception as e:
-            self.logger.error(f"Chat completion failed: {str(e)}")
+            self.logger.error(f"Chat completion failed for model {model_id}: {str(e)}")
             # 返回错误JSON而不是空字符串
             import json
             return json.dumps({
@@ -230,6 +231,7 @@ class MaxKBModelClient:
             模型响应文本
         """
         try:
+            self.logger.info(f"Calling vision completion with model_id: {model_id}")
             # 获取视觉模型实例
             vision_model = await self.get_vision_model(model_id)
             
@@ -242,6 +244,10 @@ class MaxKBModelClient:
                     "title": "No Model",
                     "description": "Vision model not available"
                 })
+            else:
+                # Log actual model name if available
+                actual_model_name = getattr(vision_model, 'model_name', 'unknown')
+                self.logger.info(f"Vision model instance created with actual model_name: {actual_model_name}")
             
             # 读取图片并转换为base64
             import base64
@@ -292,7 +298,7 @@ class MaxKBModelClient:
                 return str(response)
                 
         except Exception as e:
-            self.logger.error(f"Vision completion failed: {str(e)}")
+            self.logger.error(f"Vision completion failed for model {model_id}: {str(e)}")
             # 返回错误JSON而不是空字符串
             import json
             return json.dumps({

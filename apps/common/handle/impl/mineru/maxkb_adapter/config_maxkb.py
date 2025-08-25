@@ -120,7 +120,7 @@ class MaxKBMinerUConfig(MinerUConfig):
             else:
                 model_id = self.vision_model_id
             
-            logger.debug(f"MaxKB: Calling model {model_id} with {len(messages)} messages")
+            logger.info(f"MaxKB: Calling model {model_id} with {len(messages)} messages, use_llm={use_llm}, model_type={model_type}")
             
             # Check if this is a vision request (has images)
             has_images = False
@@ -171,6 +171,7 @@ class MaxKBMinerUConfig(MinerUConfig):
                             combined_prompt += msg.get('content', '')
                 
                 if image_path:
+                    logger.info(f"MaxKB: Calling vision_completion with model_id={model_id}, image_path={image_path[:100] if len(image_path) > 100 else image_path}")
                     response_text = await maxkb_model_client.vision_completion(
                         model_id=model_id,
                         image_path=image_path,
@@ -179,6 +180,7 @@ class MaxKBMinerUConfig(MinerUConfig):
                     )
                 else:
                     # Fallback to text completion
+                    logger.info(f"MaxKB: Falling back to chat_completion for vision model {model_id} (no image content)")
                     response_text = await maxkb_model_client.chat_completion(
                         model_id=model_id,
                         messages=messages,
@@ -186,6 +188,7 @@ class MaxKBMinerUConfig(MinerUConfig):
                     )
             else:
                 # Regular text completion
+                logger.info(f"MaxKB: Calling chat_completion with model_id={model_id}")
                 response_text = await maxkb_model_client.chat_completion(
                     model_id=model_id,
                     messages=messages,
@@ -210,7 +213,7 @@ class MaxKBMinerUConfig(MinerUConfig):
             return MockResponse(response_text)
             
         except Exception as e:
-            logger.error(f"MaxKB model call failed: {str(e)}")
+            logger.error(f"MaxKB model call failed for model_id={model_id}, use_llm={use_llm}: {str(e)}")
             # Return a mock response with error message
             class MockResponse:
                 def __init__(self, content):
