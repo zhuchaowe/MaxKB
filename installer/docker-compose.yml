@@ -2,10 +2,11 @@ version: '3.8'
 
 services:
   maxkb-dev:
+    image: 192.168.101.129:2009/maxkb-dev:v1
     # 如果需要本地构建，取消下面两行注释
-    build:
-      context: ../
-      dockerfile: installer/Dockerfile
+    #build:
+    # context: ../
+    # dockerfile: installer/Dockerfile
     container_name: maxkb-dev
     ports:
       - "2008:8080"
