@@ -1,78 +1,63 @@
+# 最简化的开发环境配置 - 使用单容器模式
 version: '3.8'
 
 services:
-  maxkb-dev:
-    # 使用生产镜像或本地构建的镜像
+  maxkb:
+    # 使用官方镜像
     image: maxkb-local:latest
-    # 如果需要本地构建，取消下面两行注释
-    # build:
-    #   context: ../
-    #   dockerfile: installer/Dockerfile
     container_name: maxkb-dev
     ports:
       - "8080:8080"
     volumes:
-      # 挂载Python源码实现热重载
-      - ../apps:/opt/maxkb-app/apps
-      - ../main.py:/opt/maxkb-app/main.py
-      - ../installer/maxkb.py:/opt/maxkb-app/maxkb.py
-      
-      # 挂载UI源码（用于前端开发）
-      - ../ui/src:/opt/maxkb-app/ui/src
-      - ../ui/public:/opt/maxkb-app/ui/public
-      
-      # 持久化数据
-      - maxkb_data:/opt/maxkb/data
-      
-      # 开发配置
-      - ./dev.env:/opt/maxkb-app/.env
+      # 挂载Python源码 - 实现后端热重载
+      - ../apps:/opt/maxkb-app/apps:rw
+      - ../main.py:/opt/maxkb-app/main.py:rw
+      - ../tmp:/tmp
+      # 数据持久化
+      - ~/.maxkb:/opt/maxkb
+
     environment:
-      # 开发环境变量
+      # 开启调试模式
       DJANGO_DEBUG: "True"
       PYTHONUNBUFFERED: "1"
       MAXKB_LOG_LEVEL: "DEBUG"
       
-      # 数据库配置（使用内置的PostgreSQL）
-      MAXKB_DB_HOST: "127.0.0.1"
-      MAXKB_DB_PORT: "5432"
-      MAXKB_DB_NAME: "maxkb"
-      MAXKB_DB_USER: "root"
-      MAXKB_DB_PASSWORD: "Password123@postgres"
+      # MinerU 配置
+      MINERU_PARSER_CACHE: "True"
+      MINERU_MULTIMODAL_REFINEMENT: "True"
+      # MinerU 图片存储路径
+      MAXKB_STORAGE_PATH: "/opt/maxkb/storage"
       
-      # Redis配置（使用内置的Redis）
-      MAXKB_REDIS_HOST: "127.0.0.1"
-      MAXKB_REDIS_PORT: "6379"
-      MAXKB_REDIS_PASSWORD: "Password123@redis"
-    # 使用默认的启动命令，让容器内的所有服务正常启动
-    # command 留空使用镜像默认的 entrypoint
-    networks:
-      - maxkb-network
-
-  # 独立的前端开发服务器（可选）
-  frontend-dev:
-    image: node:20-alpine
-    container_name: maxkb-frontend-dev
-    working_dir: /app
-    volumes:
-      - ../ui:/app
-      - /app/node_modules  # 防止覆盖node_modules
-    ports:
-      - "5173:5173"  # Vite开发服务器
-      - "5174:5174"  # Chat界面开发服务器
-    environment:
-      - VITE_APP_BASE_URL=http://localhost:8080
-    command: >
-      sh -c "
-        npm config set registry https://registry.npmmirror.com &&
-        npm install &&
-        npm run dev
-      "
-    networks:
-      - maxkb-network
-
-volumes:
-  maxkb_data:
-
-networks:
-  maxkb-network:
-    driver: bridge
+      MINERU_API_TYPE: "self_hosted"
+      MINERU_API_URL: "http://mineru:8000"
+      
+      # MINERU_API_TYPE: "cloud"
+      # MINERU_API_URL: "https://mineru.net"
+      # MINERU_API_KEY: "eyJ0eXBlIjoiSldUIiwiYWxnIjoiSFM1MTIifQ.eyJqdGkiOiI2OTYwMDEwNiIsInJvbCI6IlJPTEVfUkVHSVNURVIiLCJpc3MiOiJPcGVuWExhYiIsImlhdCI6MTc1NTE2MzQ5OCwiY2xpZW50SWQiOiJsa3pkeDU3bnZ5MjJqa3BxOXgydyIsInBob25lIjoiIiwib3BlbklkIjpudWxsLCJ1dWlkIjoiYTQwODk5NjMtNDI1OS00MWM3LWE3NWItY2IzZTQ4NTRjYWIwIiwiZW1haWwiOiIiLCJleHAiOjE3NTYzNzMwOTh9.88m9JSKQhkwJ557jCTFOgmdjeAfpXzxy2QDINaJ0rfHfnMNBxQt47aHr2jABeuxW-fXm8S5AO7zWWTXEGx8BxA"
+      
+      # 配置队列大小
+      MINERU_QUEUE_SIZE: "50"
+      # 配置处理超时时间（秒）
+      MINERU_PROCESSING_TIMEOUT: "7200"
+      # 配置各线程数量（支持多线程）
+      MINERU_PARSER_THREADS: "1"
+      MINERU_REFINER_THREADS: "3"
+      MINERU_RECOGNIZER_THREADS: "3"
+      MINERU_UPLOADER_THREADS: "1"
+      
+      MINERU_BATCH_PROCESSING: "true"
+      MINERU_BATCH_SIZE: "10"
+      # 启用/禁用过滤
+      MINERU_SKIP_SMALL_IMAGES: "true"
+      # 每页最多图片数
+      MINERU_MAX_IMAGES_PER_PAGE: "10"
+      # 文档最多图片数
+      MINERU_MAX_IMAGES_PER_DOCUMENT: "200"
+      # 最小图片尺寸（像素）
+      MINERU_MIN_IMAGE_SIZE: "10000"
+      # 最大图片尺寸（像素）
+      MINERU_MAX_IMAGE_SIZE: "10000000"
+      # 过滤无意义图片
+      MINERU_FILTER_MEANINGLESS: "true"
+    restart: unless-stopped
+    # 使用镜像默认的启动命令

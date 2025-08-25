@@ -187,3 +187,4 @@ uv.lock
 apps/models_provider/impl/*/icon/
 tmp/
 config.yml
+resources
