@@ -67,24 +67,6 @@ if [ ! -f "resources/LibreOffice_25.2.3_Linux_x86-64_deb.tar.gz_00" ] || \
 fi
 echo "✓ 所有 LibreOffice 资源文件就绪"
 
-# 检查是否需要构建镜像
-echo ""
-echo "检查 Docker 镜像..."
-if ! docker images | grep -q "maxkb-installer-maxkb-dev"; then
-    echo "镜像不存在，需要先构建镜像..."
-    echo "正在构建 Docker 镜像，这可能需要几分钟时间..."
-    cd installer
-    docker-compose build
-    cd ..
-    if [ $? -ne 0 ]; then
-        echo "错误: Docker 镜像构建失败"
-        exit 1
-    fi
-    echo "✓ Docker 镜像构建成功"
-else
-    echo "✓ Docker 镜像已存在"
-fi
-
 # 停止并删除旧容器（如果存在）
 echo ""
 echo "检查现有容器..."
@@ -96,11 +78,12 @@ if docker ps -a | grep -q maxkb-dev; then
     echo "✓ 旧容器已停止并删除"
 fi
 
-# 启动容器
+# 启动容器（docker-compose 会自动构建镜像如果不存在）
 echo ""
 echo "启动 MaxKB 容器..."
+echo "如果镜像不存在，将自动构建（首次运行可能需要几分钟）..."
 cd installer
-docker-compose up -d
+docker-compose up -d --build
 
 # 检查启动结果
 if [ $? -eq 0 ]; then
