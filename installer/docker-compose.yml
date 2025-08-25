@@ -20,6 +20,7 @@ services:
       MAXKB_LOG_LEVEL: "DEBUG"
       
       # MinerU 配置
+      MAXKB_BASE_URL: http://xbase.aitravelmaster.com
       MINERU_PARSER_CACHE: "True"
       MINERU_MULTIMODAL_REFINEMENT: "True"
       # MinerU 图片存储路径
