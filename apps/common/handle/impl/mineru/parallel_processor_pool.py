@@ -50,8 +50,15 @@ class ParallelProcessorPool:
             ParallelMinerUProcessor instance
         """
         with self._pool_lock:
-            if learn_type not in self._processors:
-                self.logger.info(f"Creating new parallel processor for learn_type={learn_type}")
+            # Create a cache key that includes config identifiers if available
+            cache_key = learn_type
+            if config and hasattr(config, 'llm_model_id') and hasattr(config, 'vision_model_id'):
+                # Include model IDs in cache key to ensure different configs get different processors
+                cache_key = f"{learn_type}_{config.llm_model_id}_{config.vision_model_id}"
+                self.logger.info(f"Cache key for processor: {cache_key}")
+            
+            if cache_key not in self._processors:
+                self.logger.info(f"Creating new parallel processor for cache_key={cache_key}, learn_type={learn_type}")
                 # Use provided config or create default
                 if config is None:
                     config = MinerUConfig()
@@ -59,21 +66,27 @@ class ParallelProcessorPool:
                 if hasattr(config, 'llm_model_id') and hasattr(config, 'vision_model_id'):
                     self.logger.info(f"Using config with LLM={getattr(config, 'llm_model_id', 'N/A')}, Vision={getattr(config, 'vision_model_id', 'N/A')}")
                 processor = ParallelMinerUProcessor(config, learn_type, platform_adapter)
-                self._processors[learn_type] = processor
+                self._processors[cache_key] = processor
+            else:
+                self.logger.info(f"Reusing cached processor for cache_key={cache_key}")
+                # Verify cached processor has expected config
+                cached_processor = self._processors[cache_key]
+                if hasattr(cached_processor, 'config') and hasattr(cached_processor.config, 'llm_model_id'):
+                    self.logger.info(f"Cached processor config: LLM={cached_processor.config.llm_model_id}, Vision={cached_processor.config.vision_model_id}")
             
-            return self._processors[learn_type]
+            return self._processors[cache_key]
     
     async def shutdown_all(self):
         """Shutdown all processors in the pool"""
         self.logger.info("Shutting down all parallel processors...")
         
         with self._pool_lock:
-            for learn_type, processor in self._processors.items():
+            for cache_key, processor in self._processors.items():
                 try:
                     await processor.shutdown()
-                    self.logger.info(f"Shutdown processor for learn_type={learn_type}")
+                    self.logger.info(f"Shutdown processor for cache_key={cache_key}")
                 except Exception as e:
-                    self.logger.error(f"Error shutting down processor {learn_type}: {e}")
+                    self.logger.error(f"Error shutting down processor {cache_key}: {e}")
             
             self._processors.clear()
         
