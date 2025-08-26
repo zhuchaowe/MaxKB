@@ -914,21 +914,46 @@ class MinerUAPIClient:
                 # List files in images directory
                 image_files = os.listdir(images_dir)
                 self.logger.info(f"mineru-api: found {len(image_files)} files in images directory")
+                self.logger.info(f"mineru-api: image files in directory: {image_files[:10]}")  # Show first 10 files
                 
-                for img_filename in all_images:
-                    src_img_path = os.path.join(images_dir, img_filename)
-                    dest_img_path = os.path.join(temp_dir, img_filename)
-                    
-                    if os.path.exists(src_img_path):
-                        import shutil
+                # Copy ALL image files from images directory to temp_dir
+                import shutil
+                for img_file in image_files:
+                    if img_file.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
+                        src_img_path = os.path.join(images_dir, img_file)
+                        dest_img_path = os.path.join(temp_dir, img_file)
                         shutil.copy(src_img_path, dest_img_path)
-                        self.logger.info(f"mineru-api: copied image {img_filename} to {dest_img_path}")
-                    else:
-                        self.logger.warning(f"mineru-api: image not found in images dir: {img_filename}")
-                        # List available images for debugging
-                        matching_files = [f for f in image_files if img_filename in f]
+                        self.logger.info(f"mineru-api: copied image {img_file} to temp_dir")
+                
+                # Also try to copy specific images referenced in content_list
+                for img_filename in all_images:
+                    # Try different possible paths and names
+                    possible_names = [
+                        img_filename,
+                        img_filename.replace('.png', '.jpg'),
+                        img_filename.replace('.jpg', '.png'),
+                        os.path.basename(img_filename)  # Just the filename without path
+                    ]
+                    
+                    copied = False
+                    for name in possible_names:
+                        src_img_path = os.path.join(images_dir, name)
+                        if os.path.exists(src_img_path):
+                            dest_img_path = os.path.join(temp_dir, img_filename)
+                            if not os.path.exists(dest_img_path):
+                                shutil.copy(src_img_path, dest_img_path)
+                                self.logger.info(f"mineru-api: copied referenced image {name} as {img_filename}")
+                                copied = True
+                                break
+                    
+                    if not copied:
+                        # Try to find similar files
+                        base_name = os.path.splitext(img_filename)[0]
+                        matching_files = [f for f in image_files if base_name in f]
                         if matching_files:
-                            self.logger.info(f"mineru-api: similar files found: {matching_files}")
+                            self.logger.warning(f"mineru-api: image {img_filename} not found, but similar files exist: {matching_files}")
+                        else:
+                            self.logger.warning(f"mineru-api: image {img_filename} not found in images dir")
             else:
                 self.logger.warning(f"mineru-api: images directory not found: {images_dir}")
             

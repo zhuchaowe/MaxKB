@@ -44,13 +44,13 @@ def advanced_learning_by_document(document_id: str, knowledge_id: str, workspace
         maxkb_logger.info(f"Updated document {document_id} status to PARSING")
         
         # 获取文档
-        document = QuerySet(Document).filter(id=document_id).first()
+        document = Document.objects.filter(id=document_id).first()
         if not document:
-            maxkb_logger.error(f"Document {document_id} not found")
+            maxkb_logger.error(f"Document {document_id} not found in database")
             return
         
         # 获取知识库
-        knowledge = QuerySet(Knowledge).filter(id=knowledge_id).first()
+        knowledge = Knowledge.objects.filter(id=knowledge_id).first()
         if not knowledge:
             maxkb_logger.error(f"Knowledge {knowledge_id} not found")
             return
@@ -66,7 +66,7 @@ def advanced_learning_by_document(document_id: str, knowledge_id: str, workspace
             )
             return
         
-        source_file = QuerySet(File).filter(id=source_file_id).first()
+        source_file = File.objects.filter(id=source_file_id).first()
         if not source_file:
             maxkb_logger.warning(f"Source file not found for document {document.id}")
             ListenerManagement.update_status(

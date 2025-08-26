@@ -1196,7 +1196,19 @@ class DocumentSerializers(serializers.Serializer):
                 ProblemParagraphManage(problem_paragraph_object_list, knowledge_id).to_problem_model_list()
             )
             # 插入文档
-            QuerySet(Document).bulk_create(document_model_list) if len(document_model_list) > 0 else None
+            if len(document_model_list) > 0:
+                QuerySet(Document).bulk_create(document_model_list)
+                # 确保文档已经保存到数据库
+                from django.db import connection
+                connection.cursor().execute("SELECT 1")  # 确保之前的操作已提交
+                
+                # 验证文档是否成功保存
+                for doc in document_model_list:
+                    saved_doc = QuerySet(Document).filter(id=doc.id).first()
+                    if saved_doc:
+                        maxkb_logger.info(f"Document {doc.id} successfully saved to database")
+                    else:
+                        maxkb_logger.error(f"Document {doc.id} not found after bulk_create")
             
             # 处理高级学习文档的异步任务
             for idx, document in enumerate(instance_list):
@@ -1214,15 +1226,25 @@ class DocumentSerializers(serializers.Serializer):
                         State.PENDING
                     )
                     
+                    # 提交异步任务前验证文档存在
+                    verify_doc = QuerySet(Document).filter(id=document_model.id).first()
+                    if not verify_doc:
+                        maxkb_logger.error(f"Document {document_model.id} not found before submitting task")
+                        continue
+                        
                     # 提交异步任务
                     try:
                         from knowledge.tasks.advanced_learning import advanced_learning_by_document
-                        advanced_learning_by_document.delay(
-                            str(document_model.id),
-                            str(knowledge_id),
-                            self.data.get('workspace_id', ''),
-                            llm_model_id,
-                            vision_model_id
+                        # 使用 apply_async 并添加延迟，确保事务提交后再执行
+                        advanced_learning_by_document.apply_async(
+                            args=[
+                                str(document_model.id),
+                                str(knowledge_id),
+                                self.data.get('workspace_id', ''),
+                                llm_model_id,
+                                vision_model_id
+                            ],
+                            countdown=2  # 延迟2秒执行
                         )
                         maxkb_logger.info(f"Advanced learning task submitted for document {document_model.id}")
                     except Exception as e:
