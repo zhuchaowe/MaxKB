@@ -55,6 +55,9 @@ class ParallelProcessorPool:
                 # Use provided config or create default
                 if config is None:
                     config = MinerUConfig()
+                # Log the config being used
+                if hasattr(config, 'llm_model_id') and hasattr(config, 'vision_model_id'):
+                    self.logger.info(f"Using config with LLM={getattr(config, 'llm_model_id', 'N/A')}, Vision={getattr(config, 'vision_model_id', 'N/A')}")
                 processor = ParallelMinerUProcessor(config, learn_type, platform_adapter)
                 self._processors[learn_type] = processor
             

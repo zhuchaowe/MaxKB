@@ -41,6 +41,9 @@ class MinerUImageProcessor:
         self.logger = logger
         self.image_optimizer = None
         self.platform_adapter = None  # Will be set by parser if available
+        # Log the config being used
+        if hasattr(config, 'llm_model_id') and hasattr(config, 'vision_model_id'):
+            self.logger.info(f"ImageProcessor initialized with config: LLM={getattr(config, 'llm_model_id', 'N/A')}, Vision={getattr(config, 'vision_model_id', 'N/A')}")
         
     async def initialize(self):
         """Initialize image optimizer"""

@@ -175,7 +175,7 @@ class MinerUExtractor(BaseMinerUExtractor):
         
         # 导入并创建MaxKB特定的配置，传递模型ID
         from .config_maxkb import MaxKBMinerUConfig
-        config = MaxKBMinerUConfig(llm_model_id=llm_model_id, vision_model_id=vision_model_id)
+        config = MaxKBMinerUConfig.create(llm_model_id=llm_model_id, vision_model_id=vision_model_id)
         
         # 调用基类初始化，传递适配器、配置和MaxKB特有参数
         super().__init__(
