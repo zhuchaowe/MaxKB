@@ -15,17 +15,23 @@ class MaxKBMinerUConfig(MinerUConfig):
     @classmethod
     def create(cls, llm_model_id: str = None, vision_model_id: str = None):
         """Factory method to create config with specific model IDs"""
-        instance = cls()
-        # Override model IDs after creation
-        if llm_model_id:
-            instance.llm_model_id = llm_model_id
-        if vision_model_id:
-            instance.vision_model_id = vision_model_id
-        
-        # Log the configured model IDs
         from .logger import get_module_logger
         logger = get_module_logger('config_maxkb')
-        logger.info(f"MaxKBMinerUConfig.create() set LLM={instance.llm_model_id}, Vision={instance.vision_model_id}")
+        logger.info(f"MaxKBMinerUConfig.create() called with llm_model_id={llm_model_id}, vision_model_id={vision_model_id}")
+        
+        instance = cls()
+        logger.info(f"After cls(), before override: LLM={instance.llm_model_id}, Vision={instance.vision_model_id}")
+        
+        # Override model IDs after creation - MUST override both to prevent defaults
+        if llm_model_id:
+            instance.llm_model_id = llm_model_id
+            logger.info(f"Set llm_model_id to {llm_model_id}")
+        if vision_model_id:
+            instance.vision_model_id = vision_model_id
+            logger.info(f"Set vision_model_id to {vision_model_id}")
+        
+        # Log the final configured model IDs
+        logger.info(f"MaxKBMinerUConfig.create() final: LLM={instance.llm_model_id}, Vision={instance.vision_model_id}")
         return instance
     
     def __post_init__(self):
@@ -34,9 +40,12 @@ class MaxKBMinerUConfig(MinerUConfig):
         super().__post_init__()
         
         # MaxKB specific settings from environment or defaults
-        # 如果环境变量中设置了具体的UUID，使用UUID；否则使用默认值或自动检测
-        self.llm_model_id = os.getenv('MAXKB_LLM_MODEL_ID', self._get_default_llm_model_id())
-        self.vision_model_id = os.getenv('MAXKB_VISION_MODEL_ID', self._get_default_vision_model_id())
+        # 只有在属性不存在时才设置默认值，避免覆盖已经设置的值
+        if not hasattr(self, 'llm_model_id'):
+            self.llm_model_id = os.getenv('MAXKB_LLM_MODEL_ID', self._get_default_llm_model_id())
+        
+        if not hasattr(self, 'vision_model_id'):
+            self.vision_model_id = os.getenv('MAXKB_VISION_MODEL_ID', self._get_default_vision_model_id())
         
         # Log the configured model IDs
         from .logger import get_module_logger
@@ -287,21 +296,34 @@ class MaxKBMinerUConfig(MinerUConfig):
             from django.db.models import QuerySet
             from models_provider.models import Model
             
-            # 首先尝试获取专门的视觉模型
+            # 首先尝试获取专门的视觉模型（IMAGE类型）
             model = QuerySet(Model).filter(
-                model_type__in=['VISION', 'MULTIMODAL']
+                model_type__in=['IMAGE', 'VISION', 'MULTIMODAL']
             ).first()
             
-            # 如果没有，获取任意LLM模型（许多LLM支持视觉）
+            # 如果没有IMAGE类型，尝试查找名称包含vision的模型
             if not model:
                 model = QuerySet(Model).filter(
-                    model_type__in=['LLM', 'CHAT']
+                    model_name__icontains='vision'
                 ).first()
+            
+            # 最后的备选：获取不同于LLM的模型
+            if not model:
+                # 先获取已经用作LLM的模型ID
+                llm_id = self.llm_model_id if hasattr(self, 'llm_model_id') else None
+                if llm_id:
+                    # 获取一个不同的模型
+                    model = QuerySet(Model).exclude(id=llm_id).first()
+                else:
+                    # 如果没有llm_id，获取任意模型
+                    model = QuerySet(Model).first()
             
             if model:
                 return str(model.id)
-        except Exception:
-            pass
+        except Exception as e:
+            from .logger import get_module_logger
+            logger = get_module_logger('config_maxkb')
+            logger.warning(f"Failed to get default vision model: {e}")
         
         # 返回默认值
         return 'default-vision'
